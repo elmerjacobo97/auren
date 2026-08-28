@@ -1,23 +1,21 @@
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
-const sourceRoot = fileURLToPath(new URL("./src", import.meta.url));
+const sourceRoot = new URL("./src/", import.meta.url).pathname;
 
 export default defineConfig({
   resolve: {
     alias: [
       {
         find: "@auren/schemas/catalog",
-        replacement: path.join(sourceRoot, "catalog/element-schema.ts"),
+        replacement: `${sourceRoot}catalog/element-schema.ts`,
       },
       {
         find: "@auren/schemas/element",
-        replacement: path.join(sourceRoot, "element/structural-schema.ts"),
+        replacement: `${sourceRoot}element/structural-schema.ts`,
       },
       {
         find: "@auren/schemas/taxonomy",
-        replacement: path.join(sourceRoot, "taxonomy/schema.ts"),
+        replacement: `${sourceRoot}taxonomy/schema.ts`,
       },
       { find: "@", replacement: sourceRoot },
     ],
