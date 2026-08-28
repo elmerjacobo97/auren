@@ -1,23 +1,35 @@
 # Auren Agent Instructions
 
-## State
+## Current State
 
-- This repository is documentation-only: it has no application source, package manifest, workspace config, CI, build/test/lint/typecheck config, or runnable command.
-- Treat `docs/stack.md` as proposed architecture and roadmap. Its planned `pnpm`/Turborepo structure, tools, and package boundaries are not implemented until verified in repository config.
-- Treat `docs/listado-specs.md` as the recommended implementation order; each spec is intended to be completed independently before the next.
-- Use `docs/modelo-negocio.md` for product/domain context and terminology.
+- This is a pnpm 11.21.0/Turborepo monorepo requiring Node `>=20.19.0 <26`.
+- Only `@auren/schemas` contains product behavior. `apps/web`, `packages/registry`, `packages/core`, `packages/cli`, and `packages/mcp` remain private `export {}` shells.
+- `pnpm build` currently builds only `@auren/schemas`; `pnpm dev` has no workspace implementation yet.
+- `blocks/` is versioned catalog source, not a workspace. Never add package manifests beneath it.
 
-## Boundaries
+## Commands
 
-- Work only from this repository; do not import code or assumptions from sibling projects or planned paths.
-- When implementation begins, establish and verify executable setup from repository manifests/config first; derive commands from those files rather than from roadmap examples.
+- Install reproducibly: `pnpm install --frozen-lockfile`.
+- Validate pinned topology, manifests, exports, aliases, and shared config: `pnpm check`.
+- Run repository gates: `pnpm typecheck`, `pnpm test`, `pnpm lint`, `pnpm format`, `pnpm build`.
+- Run schemas only: `pnpm --filter @auren/schemas typecheck`, `pnpm --filter @auren/schemas test`, or `pnpm --filter @auren/schemas build`.
+- Run one schemas test: `pnpm --filter @auren/schemas exec vitest run src/<capability>/<file>.test.ts`.
+- `lint` and `format` are read-only; `lint:fix` and `format:fix` write changes.
+- No CI or pre-commit gate exists; local verification is authoritative.
 
-## Project Architecture
+## Architecture
 
-Before designing or implementing changes, read:
+- Before designing or implementing, read `docs/architecture.md`, `docs/stack.md`, and `docs/listado-specs.md`; OpenSpec designs must follow `docs/architecture.md`.
+- `docs/stack.md` mixes implemented foundation with roadmap. Trust manifests, config, and source when they differ.
+- Follow `docs/listado-specs.md` implementation order; each spec is intended to complete independently.
+- Use `docs/modelo-negocio.md` for domain terminology and `packages/schemas/README.md` for schema invariants and taxonomy.
+- Work only from this repository; never import code or assumptions from sibling projects.
 
-- `docs/architecture.md`
-- `docs/stack.md`
-- `docs/listado-specs.md`
+## Repository Contracts
 
-OpenSpec designs must respect the architecture rules defined in `docs/architecture.md`.
+- `scripts/verify-workspace.mjs` pins workspace names, directories, scripts, versions, exports, aliases, and TypeScript profiles. Run `pnpm check` after changing any of them.
+- Keep tests beside implementations and organize growing source by domain/capability; avoid flat `src/` layouts and premature abstractions.
+- Avoid re-export-only barrel files. `@auren/schemas` intentionally has no root export; import `@auren/schemas/element`, `/taxonomy`, or `/catalog`.
+- Inside `packages/schemas`, use `@/*` across capabilities and relative imports within one capability. Cross-workspace imports use `@auren/<package>` with `workspace:*`, never source-relative paths.
+- Keep TypeScript defaults in root profiles and Biome policy in root `biome.json`; workspace configs should only narrow inputs or declare verified aliases.
+- `dist/`, coverage, and Turbo output are generated and ignored; edit source/config, not generated artifacts.
