@@ -36,13 +36,27 @@ The root `package.json` pins pnpm through `packageManager` and keeps the bootstr
 ```bash
 pnpm install --frozen-lockfile
 pnpm check
-pnpm build
 pnpm typecheck
+pnpm lint
+pnpm format
+pnpm lint:fix
+pnpm format:fix
+pnpm build
 pnpm dev
 ```
 
-`pnpm check` validates the workspace topology and configuration without external dependencies. `build`, `typecheck`, and `dev` are the root Turborepo entry points; package tasks will be added with the corresponding implementation specs.
+`pnpm check` validates workspace topology and shared configuration without external dependencies. `pnpm typecheck` runs each shell through Turborepo. `lint` and `format` are read-only Biome checks; only their `:fix` variants write changes. `build` and `dev` remain Turborepo entry points for later implementation specs.
+
+## Shared Conventions
+
+- Root `tsconfig.base.json` owns universal strictness and module resolution. Node shells extend `tsconfig.node.json`; browser applications extend `tsconfig.web.json`.
+- Every workspace keeps a minimal local `tsconfig.json` whose inputs stay inside that workspace. Do not repeat base/profile options locally.
+- Workspace names use `@auren/<package>`. Cross-workspace imports use those package names, never relative paths into another workspace's source.
+- Internal dependencies use the destination manifest name with the exact range `workspace:*`.
+- TypeScript `paths` aliases, including mappings from `@auren/*` to source directories and local aliases such as `@/`, are intentionally deferred until a concrete implementation needs them.
+- Root Biome configuration is the only formatting, lint, and import-organization policy. Do not add workspace-level Biome, ESLint, or Prettier configuration.
+- Shell manifests remain private ESM packages at version `0.0.0` and expose only `typecheck` until a product spec introduces a real entrypoint.
 
 ## Bootstrap Limits
 
-This change does not implement Schemas, Registry behavior, block content, Core, CLI, MCP, or a functional Web application. It also does not add Biome, aliases, testing, CI, backend services, authentication, payments, or framework adapters. Those concerns remain scoped to later changes in the implementation order documented in `docs/listado-specs.md`.
+This foundation does not implement Schemas, Registry behavior, block content, Core, CLI, MCP, or a functional Web application. It also does not add local source aliases, testing, CI, backend services, authentication, payments, or framework adapters. Those concerns remain scoped to later changes in the implementation order documented in `docs/listado-specs.md`.

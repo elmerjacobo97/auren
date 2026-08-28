@@ -8,19 +8,47 @@ const errors = [];
 const expectedPackageManager = "pnpm@11.21.0";
 const expectedNodeEngine = ">=20.19.0 <26";
 const expectedWorkspaceGlobs = ["apps/*", "packages/*"];
+const expectedPackageVersion = "0.0.0";
+const expectedTypecheckScript = "tsc --project tsconfig.json --noEmit";
 const expectedPackages = {
   "apps/web": "@auren/web",
   "packages/schemas": "@auren/schemas",
   "packages/registry": "@auren/registry",
   "packages/core": "@auren/core",
   "packages/cli": "@auren/cli",
-  "packages/mcp": "@auren/mcp"
+  "packages/mcp": "@auren/mcp",
+};
+const expectedWorkspaceProfiles = {
+  "apps/web": {
+    extends: "../../tsconfig.web.json",
+    include: ["src/**/*.ts", "src/**/*.tsx"],
+  },
+  "packages/schemas": {
+    extends: "../../tsconfig.node.json",
+    include: ["src/**/*.ts"],
+  },
+  "packages/registry": {
+    extends: "../../tsconfig.node.json",
+    include: ["src/**/*.ts"],
+  },
+  "packages/core": {
+    extends: "../../tsconfig.node.json",
+    include: ["src/**/*.ts"],
+  },
+  "packages/cli": {
+    extends: "../../tsconfig.node.json",
+    include: ["src/**/*.ts"],
+  },
+  "packages/mcp": {
+    extends: "../../tsconfig.node.json",
+    include: ["src/**/*.ts"],
+  },
 };
 const expectedBlocks = [
   "blocks/marketing",
   "blocks/application",
   "blocks/ecommerce",
-  "blocks/authentication"
+  "blocks/authentication",
 ];
 
 function relativePath(filePath) {
@@ -85,7 +113,18 @@ function readText(relative) {
 }
 
 function hasExactVersion(value) {
-  return typeof value === "string" && /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(value);
+  return (
+    typeof value === "string" &&
+    /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(value)
+  );
+}
+
+function arraysEqual(actual, expected) {
+  return (
+    Array.isArray(actual) &&
+    actual.length === expected.length &&
+    actual.every((value, index) => value === expected[index])
+  );
 }
 
 function validateRootManifest() {
@@ -99,21 +138,25 @@ function validateRootManifest() {
     errors.push("package.json: root package must be private");
   }
 
+  if (manifest.type !== "module") {
+    errors.push("package.json: root package must use type module");
+  }
+
   if (manifest.packageManager !== expectedPackageManager) {
     errors.push(
-      `package.json: packageManager must be ${expectedPackageManager}, got ${String(manifest.packageManager)}`
+      `package.json: packageManager must be ${expectedPackageManager}, got ${String(manifest.packageManager)}`,
     );
   }
 
   if (manifest.engines?.node !== expectedNodeEngine) {
     errors.push(
-      `package.json: engines.node must be ${expectedNodeEngine}, got ${String(manifest.engines?.node)}`
+      `package.json: engines.node must be ${expectedNodeEngine}, got ${String(manifest.engines?.node)}`,
     );
   }
 
   if (manifest.engines?.pnpm !== "11.21.0") {
     errors.push(
-      `package.json: engines.pnpm must be 11.21.0, got ${String(manifest.engines?.pnpm)}`
+      `package.json: engines.pnpm must be 11.21.0, got ${String(manifest.engines?.pnpm)}`,
     );
   }
 
@@ -121,21 +164,27 @@ function validateRootManifest() {
     check: "node scripts/verify-workspace.mjs",
     build: "turbo run build",
     dev: "turbo run dev",
-    typecheck: "turbo run typecheck"
+    typecheck: "turbo run typecheck",
+    lint: "biome lint .",
+    "lint:fix": "biome lint --write .",
+    format: "biome format .",
+    "format:fix": "biome format --write .",
   };
 
   for (const [name, command] of Object.entries(expectedScripts)) {
     if (manifest.scripts?.[name] !== command) {
-      errors.push(`package.json: scripts.${name} must be ${JSON.stringify(command)}`);
+      errors.push(
+        `package.json: scripts.${name} must be ${JSON.stringify(command)}`,
+      );
     }
   }
 
-  for (const dependency of ["turbo", "typescript"]) {
+  for (const dependency of ["@biomejs/biome", "turbo", "typescript"]) {
     const version = manifest.devDependencies?.[dependency];
 
     if (!hasExactVersion(version)) {
       errors.push(
-        `package.json: devDependencies.${dependency} must use an exact semver version, got ${String(version)}`
+        `package.json: devDependencies.${dependency} must use an exact semver version, got ${String(version)}`,
       );
     }
   }
@@ -152,21 +201,23 @@ function validateWorkspaceManifest() {
     errors.push("pnpm-workspace.yaml: expected a packages declaration");
   }
 
-  const globs = [...workspace.matchAll(/^\s*-\s*["']?([^"'#\s]+)["']?\s*(?:#.*)?$/gm)].map(
-    (match) => match[1]
-  );
+  const globs = [
+    ...workspace.matchAll(/^\s*-\s*["']?([^"'#\s]+)["']?\s*(?:#.*)?$/gm),
+  ].map((match) => match[1]);
 
   if (
     globs.length !== expectedWorkspaceGlobs.length ||
     globs.some((glob, index) => glob !== expectedWorkspaceGlobs[index])
   ) {
     errors.push(
-      `pnpm-workspace.yaml: workspace globs must be exactly ${expectedWorkspaceGlobs.join(", ")}`
+      `pnpm-workspace.yaml: workspace globs must be exactly ${expectedWorkspaceGlobs.join(", ")}`,
     );
   }
 }
 
 function validatePackageShells() {
+  const packageNames = new Set(Object.values(expectedPackages));
+
   for (const [relative, expectedName] of Object.entries(expectedPackages)) {
     if (!requireDirectory(relative)) {
       continue;
@@ -186,30 +237,191 @@ function validatePackageShells() {
       errors.push(`${relative}/package.json: package shell must be private`);
     }
 
-    if (manifest.type !== "module") {
-      errors.push(`${relative}/package.json: package shell must use type module`);
+    if (manifest.version !== expectedPackageVersion) {
+      errors.push(
+        `${relative}/package.json: version must be ${expectedPackageVersion}`,
+      );
     }
 
-    for (const field of [
-      "exports",
-      "main",
-      "module",
-      "bin",
-      "scripts",
-      "dependencies",
-      "devDependencies"
-    ]) {
+    if (manifest.type !== "module") {
+      errors.push(
+        `${relative}/package.json: package shell must use type module`,
+      );
+    }
+
+    if (manifest.scripts?.typecheck !== expectedTypecheckScript) {
+      errors.push(
+        `${relative}/package.json: scripts.typecheck must be ${JSON.stringify(expectedTypecheckScript)}`,
+      );
+    }
+
+    if (
+      Object.keys(manifest.scripts ?? {}).some(
+        (script) => script !== "typecheck",
+      )
+    ) {
+      errors.push(
+        `${relative}/package.json: shell scripts must contain only typecheck`,
+      );
+    }
+
+    for (const field of ["exports", "main", "module", "bin"]) {
       if (field in manifest) {
         errors.push(`${relative}/package.json: shell must not define ${field}`);
       }
     }
+
+    for (const section of [
+      "dependencies",
+      "devDependencies",
+      "peerDependencies",
+      "optionalDependencies",
+    ]) {
+      for (const [dependency, version] of Object.entries(
+        manifest[section] ?? {},
+      )) {
+        if (!dependency.startsWith("@auren/")) {
+          continue;
+        }
+
+        if (!packageNames.has(dependency)) {
+          errors.push(
+            `${relative}/package.json: ${section}.${dependency} does not match a workspace package name`,
+          );
+        } else if (version !== "workspace:*") {
+          errors.push(
+            `${relative}/package.json: ${section}.${dependency} must use workspace:*, got ${String(version)}`,
+          );
+        }
+      }
+    }
+  }
+}
+
+function validateTypeScriptProfiles() {
+  const universalOptions = [
+    "strict",
+    "target",
+    "module",
+    "moduleResolution",
+    "skipLibCheck",
+  ];
+  const profiles = {
+    "tsconfig.node.json": {
+      lib: ["ES2022"],
+    },
+    "tsconfig.web.json": {
+      lib: ["ES2022", "DOM", "DOM.Iterable"],
+      jsx: "react-jsx",
+    },
+  };
+
+  for (const [relative, expectedOptions] of Object.entries(profiles)) {
+    const profile = readJson(relative);
+
+    if (!profile) {
+      continue;
+    }
+
+    if (profile.extends !== "./tsconfig.base.json") {
+      errors.push(`${relative}: extends must be ./tsconfig.base.json`);
+    }
+
+    if (!arraysEqual(profile.compilerOptions?.lib, expectedOptions.lib)) {
+      errors.push(
+        `${relative}: compilerOptions.lib must be ${expectedOptions.lib.join(", ")}`,
+      );
+    }
+
+    if (
+      expectedOptions.jsx &&
+      profile.compilerOptions?.jsx !== expectedOptions.jsx
+    ) {
+      errors.push(
+        `${relative}: compilerOptions.jsx must be ${expectedOptions.jsx}`,
+      );
+    }
+
+    if (profile.compilerOptions?.noEmit !== true) {
+      errors.push(`${relative}: compilerOptions.noEmit must be true`);
+    }
+
+    for (const option of universalOptions) {
+      if (option in (profile.compilerOptions ?? {})) {
+        errors.push(
+          `${relative}: compilerOptions.${option} belongs in tsconfig.base.json`,
+        );
+      }
+    }
+
+    if ("paths" in (profile.compilerOptions ?? {})) {
+      errors.push(
+        `${relative}: compilerOptions.paths must not bypass workspace package boundaries`,
+      );
+    }
+  }
+
+  for (const [relative, expected] of Object.entries(
+    expectedWorkspaceProfiles,
+  )) {
+    const configPath = `${relative}/tsconfig.json`;
+    const tsconfig = readJson(configPath);
+
+    if (!tsconfig) {
+      continue;
+    }
+
+    if (tsconfig.extends !== expected.extends) {
+      errors.push(`${configPath}: extends must be ${expected.extends}`);
+    }
+
+    if (!arraysEqual(tsconfig.include, expected.include)) {
+      errors.push(
+        `${configPath}: include must be exactly ${expected.include.join(", ")}`,
+      );
+    }
+
+    if ("compilerOptions" in tsconfig) {
+      errors.push(
+        `${configPath}: compilerOptions must be inherited from the shared profile`,
+      );
+    }
+
+    requireFile(`${relative}/src/index.ts`);
+  }
+}
+
+function validateBiomeConfiguration() {
+  const biome = readJson("biome.json");
+
+  if (!biome) {
+    return;
+  }
+
+  if (biome.formatter?.enabled !== true) {
+    errors.push("biome.json: formatter.enabled must be true");
+  }
+
+  if (
+    biome.linter?.enabled !== true ||
+    biome.linter?.rules?.preset !== "recommended"
+  ) {
+    errors.push(
+      'biome.json: linter must be enabled with the "recommended" preset',
+    );
+  }
+
+  if (biome.assist?.actions?.source?.organizeImports !== "on") {
+    errors.push(
+      'biome.json: assist.actions.source.organizeImports must be "on"',
+    );
   }
 }
 
 function validateWorkspaceRoots() {
   const expectedRoots = new Map([
     ["apps", new Set(["web"])],
-    ["packages", new Set(["schemas", "registry", "core", "cli", "mcp"])]
+    ["packages", new Set(["schemas", "registry", "core", "cli", "mcp"])],
   ]);
 
   for (const [rootName, expectedChildren] of expectedRoots) {
@@ -220,12 +432,14 @@ function validateWorkspaceRoots() {
     const actualChildren = new Set(
       readdirSync(absolutePath(rootName), { withFileTypes: true })
         .filter((entry) => entry.isDirectory())
-        .map((entry) => entry.name)
+        .map((entry) => entry.name),
     );
 
     for (const child of expectedChildren) {
       if (!actualChildren.has(child)) {
-        errors.push(`${rootName}/${child}: required workspace directory is missing`);
+        errors.push(
+          `${rootName}/${child}: required workspace directory is missing`,
+        );
       }
     }
 
@@ -258,7 +472,9 @@ function reportBlockPackageManifests(directory) {
     if (entry.isDirectory()) {
       reportBlockPackageManifests(entryPath);
     } else if (entry.isFile() && entry.name === "package.json") {
-      errors.push(`${relativePath(entryPath)}: blocks must not contain package manifests`);
+      errors.push(
+        `${relativePath(entryPath)}: blocks must not contain package manifests`,
+      );
     }
   }
 }
@@ -276,7 +492,9 @@ function validateConfigurationFiles() {
   }
 
   if (compilerOptions?.moduleResolution !== "Bundler") {
-    errors.push("tsconfig.base.json: compilerOptions.moduleResolution must be Bundler");
+    errors.push(
+      "tsconfig.base.json: compilerOptions.moduleResolution must be Bundler",
+    );
   }
 
   if (compilerOptions?.target !== "ES2022") {
@@ -284,7 +502,15 @@ function validateConfigurationFiles() {
   }
 
   if (compilerOptions?.skipLibCheck !== true) {
-    errors.push("tsconfig.base.json: compilerOptions.skipLibCheck must be true");
+    errors.push(
+      "tsconfig.base.json: compilerOptions.skipLibCheck must be true",
+    );
+  }
+
+  if ("paths" in (compilerOptions ?? {})) {
+    errors.push(
+      "tsconfig.base.json: compilerOptions.paths must not bypass workspace package boundaries",
+    );
   }
 
   const turbo = readJson("turbo.json");
@@ -295,7 +521,10 @@ function validateConfigurationFiles() {
     return;
   }
 
-  if (!Array.isArray(tasks.build?.dependsOn) || !tasks.build.dependsOn.includes("^build")) {
+  if (
+    !Array.isArray(tasks.build?.dependsOn) ||
+    !tasks.build.dependsOn.includes("^build")
+  ) {
     errors.push('turbo.json: tasks.build.dependsOn must include "^build"');
   }
 
@@ -303,7 +532,9 @@ function validateConfigurationFiles() {
     !Array.isArray(tasks.typecheck?.dependsOn) ||
     !tasks.typecheck.dependsOn.includes("^typecheck")
   ) {
-    errors.push('turbo.json: tasks.typecheck.dependsOn must include "^typecheck"');
+    errors.push(
+      'turbo.json: tasks.typecheck.dependsOn must include "^typecheck"',
+    );
   }
 
   if (tasks.dev?.cache !== false) {
@@ -316,7 +547,12 @@ function validateConfigurationFiles() {
 }
 
 function validateRequiredFiles() {
-  for (const relative of ["pnpm-lock.yaml", ".gitignore", "README.md", "scripts/verify-workspace.mjs"]) {
+  for (const relative of [
+    "pnpm-lock.yaml",
+    ".gitignore",
+    "README.md",
+    "scripts/verify-workspace.mjs",
+  ]) {
     requireFile(relative);
   }
 }
@@ -328,6 +564,8 @@ validateWorkspaceRoots();
 validatePackageShells();
 validateBlockCategories();
 validateConfigurationFiles();
+validateTypeScriptProfiles();
+validateBiomeConfiguration();
 reportBlockPackageManifests(absolutePath("blocks"));
 
 if (errors.length > 0) {
@@ -339,6 +577,9 @@ if (errors.length > 0) {
   process.exitCode = 1;
 } else {
   console.log("Workspace verification passed.");
-  console.log("- 6 private workspace package shells verified");
+  console.log(
+    "- 6 private workspace package shells and TypeScript profiles verified",
+  );
+  console.log("- Root Biome and internal package alias contracts verified");
   console.log("- 4 block categories verified outside the workspace");
 }
