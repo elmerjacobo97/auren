@@ -4,6 +4,17 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "tsc --project tsconfig.build.json && node scripts/verify-dist.mjs",
+    "test": "vitest run",
     "typecheck": "tsc --project tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@auren/schemas": "workspace:*"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
   }
 }

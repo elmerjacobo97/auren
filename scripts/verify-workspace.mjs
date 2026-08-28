@@ -12,6 +12,8 @@ const expectedPackageVersion = "0.0.0";
 const expectedSchemasZodVersion = "4.5.1";
 const expectedVitestVersion = "4.1.11";
 const expectedTypecheckScript = "tsc --project tsconfig.json --noEmit";
+const expectedRegistryBuildScript =
+  "tsc --project tsconfig.build.json && node scripts/verify-dist.mjs";
 const expectedPackages = {
   "apps/web": "@auren/web",
   "packages/schemas": "@auren/schemas",
@@ -39,6 +41,17 @@ const expectedSchemasPaths = {
   "@auren/schemas/catalog": ["./src/catalog/element-schema.ts"],
   "@auren/schemas/element": ["./src/element/structural-schema.ts"],
   "@auren/schemas/taxonomy": ["./src/taxonomy/schema.ts"],
+};
+const expectedRegistryExports = {
+  ".": {
+    import: "./dist/index.js",
+    types: "./dist/index.d.ts",
+  },
+};
+const expectedRegistryPaths = {
+  "@auren/schemas/catalog": ["../schemas/src/catalog/element-schema.ts"],
+  "@auren/schemas/element": ["../schemas/src/element/structural-schema.ts"],
+  "@auren/schemas/taxonomy": ["../schemas/src/taxonomy/schema.ts"],
 };
 const expectedWorkspaceProfiles = {
   "apps/web": {
@@ -360,6 +373,86 @@ function validateSchemasManifest(manifest) {
   }
 }
 
+function validateRegistryManifest(manifest) {
+  if (
+    Object.keys(manifest.dependencies ?? {}).length !== 1 ||
+    manifest.dependencies?.["@auren/schemas"] !== "workspace:*"
+  ) {
+    errors.push(
+      "packages/registry/package.json: runtime dependencies must contain only @auren/schemas at workspace:*",
+    );
+  }
+
+  if (Object.keys(manifest.devDependencies ?? {}).length > 0) {
+    errors.push(
+      "packages/registry/package.json: build and test tools must remain root devDependencies",
+    );
+  }
+
+  const exports = manifest.exports;
+  const entry = exports?.["."];
+
+  if (
+    !exports ||
+    Object.keys(exports).length !== 1 ||
+    !entry ||
+    Object.keys(entry).length !== 2 ||
+    entry.import !== expectedRegistryExports["."].import ||
+    entry.types !== expectedRegistryExports["."].types
+  ) {
+    errors.push(
+      "packages/registry/package.json: exports must expose only the generated root ESM entrypoint and declarations",
+    );
+  }
+
+  const buildConfig = readJson("packages/registry/tsconfig.build.json");
+
+  if (!buildConfig) {
+    return;
+  }
+
+  if (buildConfig.extends !== "./tsconfig.json") {
+    errors.push(
+      "packages/registry/tsconfig.build.json: extends must be ./tsconfig.json",
+    );
+  }
+
+  const compilerOptions = buildConfig.compilerOptions ?? {};
+
+  if (compilerOptions.declaration !== true) {
+    errors.push(
+      "packages/registry/tsconfig.build.json: compilerOptions.declaration must be true",
+    );
+  }
+
+  if (compilerOptions.noEmit !== false) {
+    errors.push(
+      "packages/registry/tsconfig.build.json: compilerOptions.noEmit must be false",
+    );
+  }
+
+  if (compilerOptions.outDir !== "dist") {
+    errors.push(
+      'packages/registry/tsconfig.build.json: compilerOptions.outDir must be "dist"',
+    );
+  }
+
+  if (compilerOptions.rootDir !== "src") {
+    errors.push(
+      'packages/registry/tsconfig.build.json: compilerOptions.rootDir must be "src"',
+    );
+  }
+
+  if (!arraysEqual(buildConfig.include, ["src/index.ts"])) {
+    errors.push(
+      "packages/registry/tsconfig.build.json: include must contain only src/index.ts",
+    );
+  }
+
+  requireFile("packages/registry/vitest.config.ts");
+  requireFile("packages/registry/scripts/verify-dist.mjs");
+}
+
 function validatePackageShells() {
   const packageNames = new Set(Object.values(expectedPackages));
 
@@ -401,7 +494,13 @@ function validatePackageShells() {
             test: "vitest run",
             typecheck: expectedTypecheckScript,
           }
-        : { typecheck: expectedTypecheckScript };
+        : relative === "packages/registry"
+          ? {
+              build: expectedRegistryBuildScript,
+              test: "vitest run",
+              typecheck: expectedTypecheckScript,
+            }
+          : { typecheck: expectedTypecheckScript };
 
     for (const [name, command] of Object.entries(expectedScripts)) {
       if (manifest.scripts?.[name] !== command) {
@@ -424,7 +523,11 @@ function validatePackageShells() {
     for (const field of ["exports", "main", "module", "bin"]) {
       if (
         field in manifest &&
-        !(relative === "packages/schemas" && field === "exports")
+        !(
+          (relative === "packages/schemas" ||
+            relative === "packages/registry") &&
+          field === "exports"
+        )
       ) {
         errors.push(`${relative}/package.json: shell must not define ${field}`);
       }
@@ -432,6 +535,8 @@ function validatePackageShells() {
 
     if (relative === "packages/schemas") {
       validateSchemasManifest(manifest);
+    } else if (relative === "packages/registry") {
+      validateRegistryManifest(manifest);
     }
 
     for (const section of [
@@ -558,6 +663,22 @@ function validateTypeScriptProfiles() {
       ) {
         errors.push(
           `${configPath}: compilerOptions.paths must contain only the declared schemas capability aliases`,
+        );
+      }
+    } else if (relative === "packages/registry") {
+      const compilerOptions = tsconfig.compilerOptions ?? {};
+      const paths = compilerOptions.paths ?? {};
+
+      if (
+        Object.keys(paths).length !==
+          Object.keys(expectedRegistryPaths).length ||
+        Object.entries(expectedRegistryPaths).some(
+          ([alias, expectedTargets]) =>
+            !arraysEqual(paths[alias], expectedTargets),
+        )
+      ) {
+        errors.push(
+          `${configPath}: compilerOptions.paths must contain only the schemas capability aliases used by Registry`,
         );
       }
     } else if ("compilerOptions" in tsconfig) {
@@ -709,6 +830,10 @@ function validateConfigurationFiles() {
     errors.push('turbo.json: tasks.build.dependsOn must include "^build"');
   }
 
+  if (!arraysEqual(tasks.build?.outputs, ["dist/**"])) {
+    errors.push('turbo.json: tasks.build.outputs must be exactly "dist/**"');
+  }
+
   if (
     !Array.isArray(tasks.typecheck?.dependsOn) ||
     !tasks.typecheck.dependsOn.includes("^typecheck")
@@ -765,9 +890,10 @@ if (errors.length > 0) {
   process.exitCode = 1;
 } else {
   console.log("Workspace verification passed.");
+  console.log("- 6 private workspaces and TypeScript profiles verified");
   console.log(
-    "- 6 private workspace package shells and TypeScript profiles verified",
+    "- Schemas and Registry exports, builds, dependencies, and aliases verified",
   );
-  console.log("- Root Biome and internal package alias contracts verified");
+  console.log("- Root Biome and remaining shell contracts verified");
   console.log("- 4 block categories verified outside the workspace");
 }

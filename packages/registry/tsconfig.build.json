@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "declaration": true,
+    "declarationMap": true,
+    "noEmit": false,
+    "outDir": "dist",
+    "paths": {
+      "@auren/schemas/catalog": ["../schemas/dist/catalog/element-schema.d.ts"],
+      "@auren/schemas/element": [
+        "../schemas/dist/element/structural-schema.d.ts"
+      ],
+      "@auren/schemas/taxonomy": ["../schemas/dist/taxonomy/schema.d.ts"]
+    },
+    "rootDir": "src",
+    "sourceMap": true
+  },
+  "include": ["src/index.ts"]
+}

@@ -29,7 +29,11 @@ importers:
 
   packages/mcp: {}
 
-  packages/registry: {}
+  packages/registry:
+    dependencies:
+      '@auren/schemas':
+        specifier: workspace:*
+        version: link:../schemas
 
   packages/schemas:
     dependencies:
