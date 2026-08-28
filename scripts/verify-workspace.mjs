@@ -9,6 +9,8 @@ const expectedPackageManager = "pnpm@11.21.0";
 const expectedNodeEngine = ">=20.19.0 <26";
 const expectedWorkspaceGlobs = ["apps/*", "packages/*"];
 const expectedPackageVersion = "0.0.0";
+const expectedSchemasZodVersion = "4.5.1";
+const expectedVitestVersion = "4.1.11";
 const expectedTypecheckScript = "tsc --project tsconfig.json --noEmit";
 const expectedPackages = {
   "apps/web": "@auren/web",
@@ -164,6 +166,7 @@ function validateRootManifest() {
     check: "node scripts/verify-workspace.mjs",
     build: "turbo run build",
     dev: "turbo run dev",
+    test: "turbo run test",
     typecheck: "turbo run typecheck",
     lint: "biome lint .",
     "lint:fix": "biome lint --write .",
@@ -179,7 +182,12 @@ function validateRootManifest() {
     }
   }
 
-  for (const dependency of ["@biomejs/biome", "turbo", "typescript"]) {
+  for (const dependency of [
+    "@biomejs/biome",
+    "turbo",
+    "typescript",
+    "vitest",
+  ]) {
     const version = manifest.devDependencies?.[dependency];
 
     if (!hasExactVersion(version)) {
@@ -187,6 +195,12 @@ function validateRootManifest() {
         `package.json: devDependencies.${dependency} must use an exact semver version, got ${String(version)}`,
       );
     }
+  }
+
+  if (manifest.devDependencies?.vitest !== expectedVitestVersion) {
+    errors.push(
+      `package.json: devDependencies.vitest must be ${expectedVitestVersion}`,
+    );
   }
 }
 
@@ -201,9 +215,16 @@ function validateWorkspaceManifest() {
     errors.push("pnpm-workspace.yaml: expected a packages declaration");
   }
 
-  const globs = [
-    ...workspace.matchAll(/^\s*-\s*["']?([^"'#\s]+)["']?\s*(?:#.*)?$/gm),
-  ].map((match) => match[1]);
+  const packagesSection = workspace.match(
+    /^packages:\s*\n((?:\s+-\s*[^\n]*\n?)*)/m,
+  )?.[1];
+  const globs = packagesSection
+    ? [
+        ...packagesSection.matchAll(
+          /^\s*-\s*["']?([^"'#\s]+)["']?\s*(?:#.*)?$/gm,
+        ),
+      ].map((match) => match[1])
+    : [];
 
   if (
     globs.length !== expectedWorkspaceGlobs.length ||
@@ -211,6 +232,84 @@ function validateWorkspaceManifest() {
   ) {
     errors.push(
       `pnpm-workspace.yaml: workspace globs must be exactly ${expectedWorkspaceGlobs.join(", ")}`,
+    );
+  }
+}
+
+function validateSchemasManifest(manifest) {
+  if (manifest.dependencies?.zod !== expectedSchemasZodVersion) {
+    errors.push(
+      `packages/schemas/package.json: dependencies.zod must be the exact version ${expectedSchemasZodVersion}`,
+    );
+  }
+
+  if (
+    Object.keys(manifest.dependencies ?? {}).some(
+      (dependency) => dependency !== "zod",
+    )
+  ) {
+    errors.push(
+      "packages/schemas/package.json: runtime dependencies must contain only zod for this change",
+    );
+  }
+
+  if (Object.keys(manifest.devDependencies ?? {}).length > 0) {
+    errors.push(
+      "packages/schemas/package.json: build and test tools must remain root devDependencies",
+    );
+  }
+
+  const exports = manifest.exports;
+  const rootExport = exports?.["."];
+
+  if (
+    !exports ||
+    Object.keys(exports).length !== 1 ||
+    !rootExport ||
+    Object.keys(rootExport).length !== 2 ||
+    rootExport.types !== "./dist/index.d.ts" ||
+    rootExport.import !== "./dist/index.js"
+  ) {
+    errors.push(
+      'packages/schemas/package.json: exports must expose only "." with ./dist/index.js and ./dist/index.d.ts',
+    );
+  }
+
+  const buildConfig = readJson("packages/schemas/tsconfig.build.json");
+
+  if (!buildConfig) {
+    return;
+  }
+
+  if (buildConfig.extends !== "./tsconfig.json") {
+    errors.push(
+      "packages/schemas/tsconfig.build.json: extends must be ./tsconfig.json",
+    );
+  }
+
+  const compilerOptions = buildConfig.compilerOptions ?? {};
+
+  if (compilerOptions.declaration !== true) {
+    errors.push(
+      "packages/schemas/tsconfig.build.json: compilerOptions.declaration must be true",
+    );
+  }
+
+  if (compilerOptions.noEmit !== false) {
+    errors.push(
+      "packages/schemas/tsconfig.build.json: compilerOptions.noEmit must be false",
+    );
+  }
+
+  if (compilerOptions.outDir !== "dist") {
+    errors.push(
+      'packages/schemas/tsconfig.build.json: compilerOptions.outDir must be "dist"',
+    );
+  }
+
+  if (!arraysEqual(buildConfig.include, ["src/index.ts"])) {
+    errors.push(
+      "packages/schemas/tsconfig.build.json: include must contain only src/index.ts",
     );
   }
 }
@@ -249,26 +348,44 @@ function validatePackageShells() {
       );
     }
 
-    if (manifest.scripts?.typecheck !== expectedTypecheckScript) {
-      errors.push(
-        `${relative}/package.json: scripts.typecheck must be ${JSON.stringify(expectedTypecheckScript)}`,
-      );
+    const expectedScripts =
+      relative === "packages/schemas"
+        ? {
+            build: "tsc --project tsconfig.build.json",
+            test: "vitest run",
+            typecheck: expectedTypecheckScript,
+          }
+        : { typecheck: expectedTypecheckScript };
+
+    for (const [name, command] of Object.entries(expectedScripts)) {
+      if (manifest.scripts?.[name] !== command) {
+        errors.push(
+          `${relative}/package.json: scripts.${name} must be ${JSON.stringify(command)}`,
+        );
+      }
     }
 
     if (
       Object.keys(manifest.scripts ?? {}).some(
-        (script) => script !== "typecheck",
+        (script) => !Object.hasOwn(expectedScripts, script),
       )
     ) {
       errors.push(
-        `${relative}/package.json: shell scripts must contain only typecheck`,
+        `${relative}/package.json: shell scripts must contain only ${Object.keys(expectedScripts).join(", ")}`,
       );
     }
 
     for (const field of ["exports", "main", "module", "bin"]) {
-      if (field in manifest) {
+      if (
+        field in manifest &&
+        !(relative === "packages/schemas" && field === "exports")
+      ) {
         errors.push(`${relative}/package.json: shell must not define ${field}`);
       }
+    }
+
+    if (relative === "packages/schemas") {
+      validateSchemasManifest(manifest);
     }
 
     for (const section of [
@@ -535,6 +652,13 @@ function validateConfigurationFiles() {
     errors.push(
       'turbo.json: tasks.typecheck.dependsOn must include "^typecheck"',
     );
+  }
+
+  if (
+    !Array.isArray(tasks.test?.dependsOn) ||
+    !tasks.test.dependsOn.includes("^test")
+  ) {
+    errors.push('turbo.json: tasks.test.dependsOn must include "^test"');
   }
 
   if (tasks.dev?.cache !== false) {

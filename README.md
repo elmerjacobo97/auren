@@ -9,7 +9,7 @@ apps/
 └── web/                 # Private application shell
 
 packages/
-├── schemas/             # Private package shell
+├── schemas/             # Canonical element schema and inferred types
 ├── registry/            # Private package shell
 ├── core/                # Private package shell
 ├── cli/                 # Private package shell
@@ -37,6 +37,7 @@ The root `package.json` pins pnpm through `packageManager` and keeps the bootstr
 pnpm install --frozen-lockfile
 pnpm check
 pnpm typecheck
+pnpm test
 pnpm lint
 pnpm format
 pnpm lint:fix
@@ -45,7 +46,7 @@ pnpm build
 pnpm dev
 ```
 
-`pnpm check` validates workspace topology and shared configuration without external dependencies. `pnpm typecheck` runs each shell through Turborepo. `lint` and `format` are read-only Biome checks; only their `:fix` variants write changes. `build` and `dev` remain Turborepo entry points for later implementation specs.
+`pnpm check` validates workspace topology and shared configuration. `pnpm typecheck` runs each shell through Turborepo. `pnpm test` runs package tests through the same graph. `lint` and `format` are read-only Biome checks; only their `:fix` variants write changes. `build` and `dev` remain Turborepo entry points for later implementation specs.
 
 ## Shared Conventions
 
@@ -59,4 +60,4 @@ pnpm dev
 
 ## Bootstrap Limits
 
-This foundation does not implement Schemas, Registry behavior, block content, Core, CLI, MCP, or a functional Web application. It also does not add local source aliases, testing, CI, backend services, authentication, payments, or framework adapters. Those concerns remain scoped to later changes in the implementation order documented in `docs/listado-specs.md`.
+The `@auren/schemas` package now provides the structural element contract. It does not implement Registry behavior, block content, Core, CLI, MCP, or a functional Web application. Official taxonomy values, storage, indexing, dependency resolution, local source aliases, CI, backend services, authentication, payments, and framework adapters remain scoped to later changes in the implementation order documented in `docs/listado-specs.md`.
