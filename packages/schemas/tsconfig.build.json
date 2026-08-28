@@ -8,5 +8,9 @@
     "rootDir": "src",
     "sourceMap": true
   },
-  "include": ["src/index.ts"]
+  "include": [
+    "src/catalog/element-schema.ts",
+    "src/element/structural-schema.ts",
+    "src/taxonomy/schema.ts"
+  ]
 }

@@ -1,16 +1,16 @@
-import { describe, expect, it } from "vitest";
-import { canonicalElement } from "./canonical-element.js";
-import {
-  MAX_DESCRIPTION_LENGTH,
-  MAX_NAME_LENGTH,
-  aurenElementSchema,
-} from "./index.js";
 import type {
   AurenDependency,
   AurenElement,
   AurenFile,
   AurenMetadata,
-} from "./index.js";
+} from "@auren/schemas/element";
+import {
+  aurenElementSchema,
+  MAX_DESCRIPTION_LENGTH,
+  MAX_NAME_LENGTH,
+} from "@auren/schemas/element";
+import { describe, expect, it } from "vitest";
+import { canonicalElement } from "@/element/fixtures/canonical-element.js";
 
 function withElementChanges(changes: Record<string, unknown>) {
   return { ...canonicalElement, ...changes };

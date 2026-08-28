@@ -20,30 +20,60 @@ const expectedPackages = {
   "packages/cli": "@auren/cli",
   "packages/mcp": "@auren/mcp",
 };
+const expectedSchemasExports = {
+  "./catalog": {
+    import: "./dist/catalog/element-schema.js",
+    types: "./dist/catalog/element-schema.d.ts",
+  },
+  "./element": {
+    import: "./dist/element/structural-schema.js",
+    types: "./dist/element/structural-schema.d.ts",
+  },
+  "./taxonomy": {
+    import: "./dist/taxonomy/schema.js",
+    types: "./dist/taxonomy/schema.d.ts",
+  },
+};
+const expectedSchemasPaths = {
+  "@/*": ["./src/*"],
+  "@auren/schemas/catalog": ["./src/catalog/element-schema.ts"],
+  "@auren/schemas/element": ["./src/element/structural-schema.ts"],
+  "@auren/schemas/taxonomy": ["./src/taxonomy/schema.ts"],
+};
 const expectedWorkspaceProfiles = {
   "apps/web": {
     extends: "../../tsconfig.web.json",
     include: ["src/**/*.ts", "src/**/*.tsx"],
+    entrypoints: ["src/index.ts"],
   },
   "packages/schemas": {
     extends: "../../tsconfig.node.json",
     include: ["src/**/*.ts"],
+    entrypoints: [
+      "src/catalog/element-schema.ts",
+      "src/element/structural-schema.ts",
+      "src/taxonomy/schema.ts",
+    ],
   },
   "packages/registry": {
     extends: "../../tsconfig.node.json",
     include: ["src/**/*.ts"],
+    entrypoints: ["src/index.ts"],
   },
   "packages/core": {
     extends: "../../tsconfig.node.json",
     include: ["src/**/*.ts"],
+    entrypoints: ["src/index.ts"],
   },
   "packages/cli": {
     extends: "../../tsconfig.node.json",
     include: ["src/**/*.ts"],
+    entrypoints: ["src/index.ts"],
   },
   "packages/mcp": {
     extends: "../../tsconfig.node.json",
     include: ["src/**/*.ts"],
+    entrypoints: ["src/index.ts"],
   },
 };
 const expectedBlocks = [
@@ -260,18 +290,28 @@ function validateSchemasManifest(manifest) {
   }
 
   const exports = manifest.exports;
-  const rootExport = exports?.["."];
+  const exportNames = Object.keys(exports ?? {});
+  const hasExpectedExports = Object.entries(expectedSchemasExports).every(
+    ([name, expected]) => {
+      const entry = exports?.[name];
+
+      return (
+        entry &&
+        Object.keys(entry).length === 2 &&
+        entry.import === expected.import &&
+        entry.types === expected.types
+      );
+    },
+  );
 
   if (
     !exports ||
-    Object.keys(exports).length !== 1 ||
-    !rootExport ||
-    Object.keys(rootExport).length !== 2 ||
-    rootExport.types !== "./dist/index.d.ts" ||
-    rootExport.import !== "./dist/index.js"
+    exportNames.length !== Object.keys(expectedSchemasExports).length ||
+    exportNames.some((name) => !Object.hasOwn(expectedSchemasExports, name)) ||
+    !hasExpectedExports
   ) {
     errors.push(
-      'packages/schemas/package.json: exports must expose only "." with ./dist/index.js and ./dist/index.d.ts',
+      "packages/schemas/package.json: exports must expose only the catalog, element, and taxonomy capability entrypoints",
     );
   }
 
@@ -307,9 +347,15 @@ function validateSchemasManifest(manifest) {
     );
   }
 
-  if (!arraysEqual(buildConfig.include, ["src/index.ts"])) {
+  if (
+    !arraysEqual(buildConfig.include, [
+      "src/catalog/element-schema.ts",
+      "src/element/structural-schema.ts",
+      "src/taxonomy/schema.ts",
+    ])
+  ) {
     errors.push(
-      "packages/schemas/tsconfig.build.json: include must contain only src/index.ts",
+      "packages/schemas/tsconfig.build.json: include must contain only the three public capability entrypoints",
     );
   }
 }
@@ -498,13 +544,31 @@ function validateTypeScriptProfiles() {
       );
     }
 
-    if ("compilerOptions" in tsconfig) {
+    if (relative === "packages/schemas") {
+      const compilerOptions = tsconfig.compilerOptions ?? {};
+      const paths = compilerOptions.paths ?? {};
+
+      if (
+        Object.keys(paths).length !==
+          Object.keys(expectedSchemasPaths).length ||
+        Object.entries(expectedSchemasPaths).some(
+          ([alias, expectedTargets]) =>
+            !arraysEqual(paths[alias], expectedTargets),
+        )
+      ) {
+        errors.push(
+          `${configPath}: compilerOptions.paths must contain only the declared schemas capability aliases`,
+        );
+      }
+    } else if ("compilerOptions" in tsconfig) {
       errors.push(
         `${configPath}: compilerOptions must be inherited from the shared profile`,
       );
     }
 
-    requireFile(`${relative}/src/index.ts`);
+    for (const entrypoint of expected.entrypoints) {
+      requireFile(`${relative}/${entrypoint}`);
+    }
   }
 }
 

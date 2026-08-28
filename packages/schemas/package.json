@@ -12,9 +12,17 @@
     "zod": "4.5.1"
   },
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+    "./catalog": {
+      "types": "./dist/catalog/element-schema.d.ts",
+      "import": "./dist/catalog/element-schema.js"
+    },
+    "./element": {
+      "types": "./dist/element/structural-schema.d.ts",
+      "import": "./dist/element/structural-schema.js"
+    },
+    "./taxonomy": {
+      "types": "./dist/taxonomy/schema.d.ts",
+      "import": "./dist/taxonomy/schema.js"
     }
   }
 }

@@ -11,3 +11,13 @@
 
 - Work only from this repository; do not import code or assumptions from sibling projects or planned paths.
 - When implementation begins, establish and verify executable setup from repository manifests/config first; derive commands from those files rather than from roadmap examples.
+
+## Project Architecture
+
+Before designing or implementing changes, read:
+
+- `docs/architecture.md`
+- `docs/stack.md`
+- `docs/listado-specs.md`
+
+OpenSpec designs must respect the architecture rules defined in `docs/architecture.md`.

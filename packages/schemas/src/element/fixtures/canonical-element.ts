@@ -5,9 +5,9 @@ export const canonicalElement = {
     "A responsive hero section with a product screenshot and two calls to action.",
   category: "marketing",
   type: "hero",
-  styles: ["minimal", "dark-mode"],
+  styles: ["minimal"],
   industries: ["saas", "ai"],
-  features: ["responsive", "product-screenshot", "two-cta"],
+  features: ["responsive", "product-screenshot", "two-cta", "dark-mode"],
   frameworks: ["react"],
   dependencies: [
     {

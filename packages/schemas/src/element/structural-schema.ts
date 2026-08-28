@@ -48,18 +48,28 @@ function addDuplicateIssues(
   }
 }
 
-export const classificationListSchema = z
-  .array(kebabCaseKeySchema)
-  .superRefine((values, ctx) => {
-    addDuplicateIssues(values, ctx, "Classification list");
-  });
+function createClassificationListSchema<T extends z.ZodType<string>>(
+  itemSchema: T,
+  label = "Classification list",
+  minimumMessage?: string,
+) {
+  const list = minimumMessage
+    ? z.array(itemSchema).min(1, minimumMessage)
+    : z.array(itemSchema);
 
-export const frameworksSchema = z
-  .array(kebabCaseKeySchema)
-  .min(1, "At least one framework is required")
-  .superRefine((values, ctx) => {
-    addDuplicateIssues(values, ctx, "Framework list");
+  return list.superRefine((values, ctx) => {
+    addDuplicateIssues(values, ctx, label);
   });
+}
+
+export const classificationListSchema =
+  createClassificationListSchema(kebabCaseKeySchema);
+
+export const frameworksSchema = createClassificationListSchema(
+  kebabCaseKeySchema,
+  "Framework list",
+  "At least one framework is required",
+);
 
 const packageDependencySchema = z.strictObject({
   kind: z.literal("package"),

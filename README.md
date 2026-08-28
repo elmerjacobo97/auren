@@ -9,7 +9,7 @@ apps/
 └── web/                 # Private application shell
 
 packages/
-├── schemas/             # Canonical element schema and inferred types
+├── schemas/             # Canonical element schema, taxonomy, and inferred types
 ├── registry/            # Private package shell
 ├── core/                # Private package shell
 ├── cli/                 # Private package shell
@@ -54,10 +54,10 @@ pnpm dev
 - Every workspace keeps a minimal local `tsconfig.json` whose inputs stay inside that workspace. Do not repeat base/profile options locally.
 - Workspace names use `@auren/<package>`. Cross-workspace imports use those package names, never relative paths into another workspace's source.
 - Internal dependencies use the destination manifest name with the exact range `workspace:*`.
-- TypeScript `paths` aliases, including mappings from `@auren/*` to source directories and local aliases such as `@/`, are intentionally deferred until a concrete implementation needs them.
+- `@auren/schemas` exposes direct capability entrypoints for `element`, `taxonomy`, and `catalog`; its source uses the local `@/*` path alias without a root barrel.
 - Root Biome configuration is the only formatting, lint, and import-organization policy. Do not add workspace-level Biome, ESLint, or Prettier configuration.
 - Shell manifests remain private ESM packages at version `0.0.0` and expose only `typecheck` until a product spec introduces a real entrypoint.
 
 ## Bootstrap Limits
 
-The `@auren/schemas` package now provides the structural element contract. It does not implement Registry behavior, block content, Core, CLI, MCP, or a functional Web application. Official taxonomy values, storage, indexing, dependency resolution, local source aliases, CI, backend services, authentication, payments, and framework adapters remain scoped to later changes in the implementation order documented in `docs/listado-specs.md`.
+The `@auren/schemas` package provides the structural element contract and the official catalog taxonomy. It does not implement Registry behavior, block content, Core, CLI, MCP, or a functional Web application. Storage, indexing, dependency resolution, local source aliases, CI, backend services, authentication, payments, and framework adapters remain scoped to later changes in the implementation order documented in `docs/listado-specs.md`.
