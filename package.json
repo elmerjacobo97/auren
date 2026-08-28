@@ -1,0 +1,20 @@
+{
+  "name": "@auren/workspace",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@11.21.0",
+  "engines": {
+    "node": ">=20.19.0 <26",
+    "pnpm": "11.21.0"
+  },
+  "scripts": {
+    "check": "node scripts/verify-workspace.mjs",
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "typecheck": "turbo run typecheck"
+  },
+  "devDependencies": {
+    "turbo": "2.10.12",
+    "typescript": "7.0.2"
+  }
+}
