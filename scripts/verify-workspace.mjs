@@ -22,7 +22,7 @@ const expectedPackages = {
   "packages/cli": "@auren/cli",
   "packages/mcp": "@auren/mcp",
 };
-const expectedSchemasExports = {
+export const expectedSchemasExports = {
   "./catalog": {
     import: "./dist/catalog/element-schema.js",
     types: "./dist/catalog/element-schema.d.ts",
@@ -35,12 +35,17 @@ const expectedSchemasExports = {
     import: "./dist/taxonomy/schema.js",
     types: "./dist/taxonomy/schema.d.ts",
   },
+  "./configuration": {
+    import: "./dist/configuration/schema.js",
+    types: "./dist/configuration/schema.d.ts",
+  },
 };
-const expectedSchemasPaths = {
+export const expectedSchemasPaths = {
   "@/*": ["./src/*"],
   "@auren/schemas/catalog": ["./src/catalog/element-schema.ts"],
   "@auren/schemas/element": ["./src/element/structural-schema.ts"],
   "@auren/schemas/taxonomy": ["./src/taxonomy/schema.ts"],
+  "@auren/schemas/configuration": ["./src/configuration/schema.ts"],
 };
 const expectedRegistryExports = {
   ".": {
@@ -77,6 +82,10 @@ export const expectedCoreExports = {
     import: "./dist/project/detect-project.js",
     types: "./dist/project/detect-project.d.ts",
   },
+  "./configuration": {
+    import: "./dist/configuration/configuration.js",
+    types: "./dist/configuration/configuration.d.ts",
+  },
 };
 const expectedRegistryPaths = {
   "@auren/schemas/catalog": ["../schemas/src/catalog/element-schema.ts"],
@@ -89,6 +98,7 @@ export const expectedCorePaths = {
   "@auren/schemas/catalog": ["../schemas/src/catalog/element-schema.ts"],
   "@auren/schemas/element": ["../schemas/src/element/structural-schema.ts"],
   "@auren/schemas/taxonomy": ["../schemas/src/taxonomy/schema.ts"],
+  "@auren/schemas/configuration": ["../schemas/src/configuration/schema.ts"],
 };
 const expectedWorkspaceProfiles = {
   "apps/web": {
@@ -103,6 +113,7 @@ const expectedWorkspaceProfiles = {
       "src/catalog/element-schema.ts",
       "src/element/structural-schema.ts",
       "src/taxonomy/schema.ts",
+      "src/configuration/schema.ts",
     ],
   },
   "packages/registry": {
@@ -121,6 +132,7 @@ const expectedWorkspaceProfiles = {
       "src/load/load-block-files.ts",
       "src/compatibility/compatibility.ts",
       "src/project/detect-project.ts",
+      "src/configuration/configuration.ts",
     ],
   },
   "packages/cli": {
@@ -379,7 +391,7 @@ function validateSchemasManifest(manifest) {
     !hasExpectedExports
   ) {
     errors.push(
-      "packages/schemas/package.json: exports must expose only the catalog, element, and taxonomy capability entrypoints",
+      "packages/schemas/package.json: exports must expose only the catalog, element, taxonomy, and configuration capability entrypoints",
     );
   }
 
@@ -420,10 +432,11 @@ function validateSchemasManifest(manifest) {
       "src/catalog/element-schema.ts",
       "src/element/structural-schema.ts",
       "src/taxonomy/schema.ts",
+      "src/configuration/schema.ts",
     ])
   ) {
     errors.push(
-      "packages/schemas/tsconfig.build.json: include must contain only the three public capability entrypoints",
+      "packages/schemas/tsconfig.build.json: include must contain only the four public capability entrypoints",
     );
   }
 }
@@ -611,10 +624,11 @@ function validateCoreManifest(manifest) {
       "src/load/load-block-files.ts",
       "src/compatibility/compatibility.ts",
       "src/project/detect-project.ts",
+      "src/configuration/configuration.ts",
     ])
   ) {
     errors.push(
-      "packages/core/tsconfig.build.json: include must contain only the seven Core capability entrypoints",
+      "packages/core/tsconfig.build.json: include must contain only the eight Core capability entrypoints",
     );
   }
 

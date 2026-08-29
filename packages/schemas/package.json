@@ -23,6 +23,10 @@
     "./taxonomy": {
       "types": "./dist/taxonomy/schema.d.ts",
       "import": "./dist/taxonomy/schema.js"
+    },
+    "./configuration": {
+      "types": "./dist/configuration/schema.d.ts",
+      "import": "./dist/configuration/schema.js"
     }
   }
 }

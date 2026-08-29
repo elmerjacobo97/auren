@@ -3,7 +3,12 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { expectedCoreExports, expectedCorePaths } from "./verify-workspace.mjs";
+import {
+  expectedCoreExports,
+  expectedCorePaths,
+  expectedSchemasExports,
+  expectedSchemasPaths,
+} from "./verify-workspace.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -27,6 +32,48 @@ test("Core manifest matches the pinned executable-package contract", () => {
   });
 });
 
+test("Schemas manifest and TypeScript settings match the capability contract", () => {
+  const manifest = readJson("packages/schemas/package.json");
+  const sourceConfig = readJson("packages/schemas/tsconfig.json");
+  const buildConfig = readJson("packages/schemas/tsconfig.build.json");
+
+  assert.deepEqual(manifest.exports, expectedSchemasExports);
+  assert.deepEqual(manifest.dependencies, { zod: "4.5.1" });
+  assert.deepEqual(sourceConfig.compilerOptions?.paths, expectedSchemasPaths);
+  assert.equal(buildConfig.extends, "./tsconfig.json");
+  assert.deepEqual(buildConfig.include, [
+    "src/catalog/element-schema.ts",
+    "src/element/structural-schema.ts",
+    "src/taxonomy/schema.ts",
+    "src/configuration/schema.ts",
+  ]);
+  assert.equal(buildConfig.compilerOptions?.declaration, true);
+  assert.equal(buildConfig.compilerOptions?.declarationMap, true);
+  assert.equal(buildConfig.compilerOptions?.noEmit, false);
+  assert.equal(buildConfig.compilerOptions?.outDir, "dist");
+  assert.equal(buildConfig.compilerOptions?.rootDir, "src");
+  assert.equal(
+    existsSync(path.join(root, "packages/schemas/src/index.ts")),
+    false,
+  );
+});
+
+test("Schemas configuration public entrypoint resolves the built API", async () => {
+  const { aurenConfigurationSchema } = await import(
+    "@auren/schemas/configuration"
+  );
+  const configuration = {
+    framework: "react",
+    components: "src/components/auren",
+    tailwind: true,
+  };
+
+  assert.deepEqual(
+    aurenConfigurationSchema.parse(configuration),
+    configuration,
+  );
+});
+
 test("Core TypeScript settings and direct entrypoint files match the contract", () => {
   const sourceConfig = readJson("packages/core/tsconfig.json");
   const buildConfig = readJson("packages/core/tsconfig.build.json");
@@ -41,6 +88,7 @@ test("Core TypeScript settings and direct entrypoint files match the contract", 
     "src/load/load-block-files.ts",
     "src/compatibility/compatibility.ts",
     "src/project/detect-project.ts",
+    "src/configuration/configuration.ts",
   ]);
   assert.equal(buildConfig.compilerOptions?.declaration, true);
   assert.equal(buildConfig.compilerOptions?.declarationMap, true);

@@ -28,6 +28,10 @@ export default defineConfig({
         find: "@auren/schemas/taxonomy",
         replacement: `${schemasSourceRoot}taxonomy/schema.ts`,
       },
+      {
+        find: "@auren/schemas/configuration",
+        replacement: `${schemasSourceRoot}configuration/schema.ts`,
+      },
     ],
   },
 });

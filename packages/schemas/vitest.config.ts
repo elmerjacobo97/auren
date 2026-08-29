@@ -17,6 +17,10 @@ export default defineConfig({
         find: "@auren/schemas/taxonomy",
         replacement: `${sourceRoot}taxonomy/schema.ts`,
       },
+      {
+        find: "@auren/schemas/configuration",
+        replacement: `${sourceRoot}configuration/schema.ts`,
+      },
       { find: "@", replacement: sourceRoot },
     ],
   },

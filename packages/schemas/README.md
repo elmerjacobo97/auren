@@ -11,6 +11,8 @@ import { aurenElementSchema } from "@auren/schemas/element";
 import type { AurenElement } from "@auren/schemas/element";
 import { catalogElementSchema } from "@auren/schemas/catalog";
 import type { CatalogElement } from "@auren/schemas/catalog";
+import { aurenConfigurationSchema } from "@auren/schemas/configuration";
+import type { AurenConfiguration } from "@auren/schemas/configuration";
 import {
   categorySchema,
   categoryValues,
@@ -26,9 +28,14 @@ const shapeOnlyResult = aurenElementSchema.safeParse(input);
 const shapeOnlyElement: AurenElement | undefined = shapeOnlyResult.success
   ? shapeOnlyResult.data
   : undefined;
+
+const configurationResult = aurenConfigurationSchema.safeParse(input);
+const configuration: AurenConfiguration | undefined = configurationResult.success
+  ? configurationResult.data
+  : undefined;
 ```
 
-The package has three direct capability entrypoints:
+The package has four direct capability entrypoints:
 
 - `@auren/schemas/element` exports the structural element and reusable
   dependency, file, metadata, key, classification, path, and kind schemas,
@@ -37,6 +44,8 @@ The package has three direct capability entrypoints:
   dimension-specific schemas, and inferred taxonomy types.
 - `@auren/schemas/catalog` exports `catalogElementSchema` and
   `CatalogElement`.
+- `@auren/schemas/configuration` exports `aurenConfigurationSchema` and the
+  inferred configuration types.
 
 There is intentionally no `@auren/schemas` root export and no barrel file.
 
@@ -47,7 +56,22 @@ Implementation and tests are colocated by capability:
 - `src/element` contains the shape-only contract and structural invariants.
 - `src/taxonomy` contains the official vocabulary source and dimension schemas.
 - `src/catalog` contains the composed taxonomy-aware element contract.
+- `src/configuration` contains the strict consumer `auren.json` contract.
 - `src/element/fixtures` contains shared canonical examples.
+
+## Configuration Contract
+
+`aurenConfigurationSchema` validates the project-local `auren.json` shape. It
+requires `framework`, `components`, and `tailwind`, and optionally accepts
+`output` destinations for `utilities`, `styles`, and `assets`, an `aliases`
+string map, and lower-case kebab-case `integrations` containing only recursive
+JSON-safe values.
+
+Component and output destinations are non-empty relative POSIX paths. They
+cannot be absolute, use Windows drive prefixes or backslashes, contain empty
+segments, or contain `.` or `..` traversal segments. Alias values are logical
+strings and are preserved exactly; they are not treated as filesystem paths.
+The schema is strict and does not trim, recase, coerce, or add defaults.
 
 ## Element Fields
 

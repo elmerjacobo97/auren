@@ -11,6 +11,7 @@
   "include": [
     "src/catalog/element-schema.ts",
     "src/element/structural-schema.ts",
-    "src/taxonomy/schema.ts"
+    "src/taxonomy/schema.ts",
+    "src/configuration/schema.ts"
   ]
 }

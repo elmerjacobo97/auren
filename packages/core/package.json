@@ -40,6 +40,10 @@
     "./project": {
       "types": "./dist/project/detect-project.d.ts",
       "import": "./dist/project/detect-project.js"
+    },
+    "./configuration": {
+      "types": "./dist/configuration/configuration.d.ts",
+      "import": "./dist/configuration/configuration.js"
     }
   }
 }

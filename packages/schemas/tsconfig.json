@@ -5,7 +5,8 @@
       "@/*": ["./src/*"],
       "@auren/schemas/catalog": ["./src/catalog/element-schema.ts"],
       "@auren/schemas/element": ["./src/element/structural-schema.ts"],
-      "@auren/schemas/taxonomy": ["./src/taxonomy/schema.ts"]
+      "@auren/schemas/taxonomy": ["./src/taxonomy/schema.ts"],
+      "@auren/schemas/configuration": ["./src/configuration/schema.ts"]
     }
   },
   "include": ["src/**/*.ts"]

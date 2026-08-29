@@ -6,7 +6,8 @@
       "@auren/registry": ["../registry/src/index.ts"],
       "@auren/schemas/catalog": ["../schemas/src/catalog/element-schema.ts"],
       "@auren/schemas/element": ["../schemas/src/element/structural-schema.ts"],
-      "@auren/schemas/taxonomy": ["../schemas/src/taxonomy/schema.ts"]
+      "@auren/schemas/taxonomy": ["../schemas/src/taxonomy/schema.ts"],
+      "@auren/schemas/configuration": ["../schemas/src/configuration/schema.ts"]
     }
   },
   "include": ["src/**/*.ts"]

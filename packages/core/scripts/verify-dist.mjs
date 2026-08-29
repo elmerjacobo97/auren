@@ -17,6 +17,11 @@ import {
 import { MissingBlockFileError, loadBlockFiles } from "@auren/core/load/files";
 import { validateCompatibility } from "@auren/core/compatibility";
 import { ProjectDetectionError, detectProject } from "@auren/core/project";
+import {
+  AurenConfigurationError,
+  readAurenConfig,
+  writeAurenConfig,
+} from "@auren/core/configuration";
 
 const errorClasses = [
   [UnknownBlockError, "UnknownBlockError"],
@@ -26,6 +31,7 @@ const errorClasses = [
   [BlockMetadataError, "BlockMetadataError"],
   [MissingBlockFileError, "MissingBlockFileError"],
   [ProjectDetectionError, "ProjectDetectionError"],
+  [AurenConfigurationError, "AurenConfigurationError"],
 ];
 
 if (
@@ -37,6 +43,8 @@ if (
   typeof loadBlockFiles !== "function" ||
   typeof validateCompatibility !== "function" ||
   typeof detectProject !== "function" ||
+  typeof readAurenConfig !== "function" ||
+  typeof writeAurenConfig !== "function" ||
   errorClasses.some(
     ([errorClass, expectedName]) => errorClass.name !== expectedName,
   )

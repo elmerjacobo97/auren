@@ -12,7 +12,10 @@
       "@auren/schemas/element": [
         "../schemas/dist/element/structural-schema.d.ts"
       ],
-      "@auren/schemas/taxonomy": ["../schemas/dist/taxonomy/schema.d.ts"]
+      "@auren/schemas/taxonomy": ["../schemas/dist/taxonomy/schema.d.ts"],
+      "@auren/schemas/configuration": [
+        "../schemas/dist/configuration/schema.d.ts"
+      ]
     },
     "rootDir": "src",
     "sourceMap": true
@@ -24,6 +27,7 @@
     "src/load/load-block-metadata.ts",
     "src/load/load-block-files.ts",
     "src/compatibility/compatibility.ts",
-    "src/project/detect-project.ts"
+    "src/project/detect-project.ts",
+    "src/configuration/configuration.ts"
   ]
 }
