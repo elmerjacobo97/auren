@@ -1,4 +1,5 @@
 import type { Command } from "commander";
+import { CommandExitError } from "../../command/command-exit-error.js";
 import type { Terminal } from "../../terminal/terminal.js";
 import { isExitStatusError, runInitFlow } from "./init-flow.js";
 import { clackInitPrompt, type InitPrompt } from "./init-prompt.js";
@@ -35,11 +36,4 @@ export function registerInitCommand(
         throw new CommandExitError(status);
       }
     });
-}
-
-export class CommandExitError extends Error {
-  constructor(readonly status: number) {
-    super(`Command exited with status ${status}`);
-    this.name = "CommandExitError";
-  }
 }

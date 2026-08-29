@@ -8,6 +8,10 @@
       "@auren/core/configuration": [
         "../core/dist/configuration/configuration.d.ts"
       ],
+      "@auren/core/load/metadata": [
+        "../core/dist/load/load-block-metadata.d.ts"
+      ],
+      "@auren/schemas/catalog": ["../schemas/dist/catalog/element-schema.d.ts"],
       "@auren/schemas/configuration": [
         "../schemas/dist/configuration/schema.d.ts"
       ],

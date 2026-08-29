@@ -19,8 +19,8 @@ try {
 
 const entrypoint = path.join(packageRoot, "dist", "index.js");
 
-function runCli(argument) {
-  const result = spawnSync(process.execPath, [entrypoint, argument], {
+function runCli(...args) {
+  const result = spawnSync(process.execPath, [entrypoint, ...args], {
     cwd: packageRoot,
     encoding: "utf8",
   });
@@ -31,7 +31,7 @@ function runCli(argument) {
 
   if (result.status !== 0) {
     throw new Error(
-      `dist/index.js ${argument} exited with ${String(result.status)}:\n${result.stderr}`,
+      `dist/index.js ${args.join(" ")} exited with ${String(result.status)}:\n${result.stderr}`,
     );
   }
 
@@ -48,8 +48,30 @@ if (!help.stdout.includes("init")) {
   throw new Error("Built CLI help did not advertise the init command");
 }
 
+if (!help.stdout.includes("info")) {
+  throw new Error("Built CLI help did not advertise the info command");
+}
+
 if (help.stderr !== "") {
   throw new Error("Built CLI help wrote to stderr");
+}
+
+const info = runCli("info", "hero-001");
+
+for (const expected of [
+  "ID: hero-001",
+  "Name: Product launch hero",
+  "Category: marketing",
+  "Files:",
+  "component.tsx",
+]) {
+  if (!info.stdout.includes(expected)) {
+    throw new Error(`Built CLI info output did not contain ${expected}`);
+  }
+}
+
+if (info.stderr !== "") {
+  throw new Error("Built CLI info wrote to stderr");
 }
 
 const version = runCli("--version");

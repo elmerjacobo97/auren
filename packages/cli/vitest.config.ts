@@ -8,6 +8,14 @@ const coreConfigurationEntrypoint = new URL(
   "../core/src/configuration/configuration.ts",
   import.meta.url,
 ).pathname;
+const coreMetadataEntrypoint = new URL(
+  "../core/src/load/load-block-metadata.ts",
+  import.meta.url,
+).pathname;
+const schemasCatalogEntrypoint = new URL(
+  "../schemas/src/catalog/element-schema.ts",
+  import.meta.url,
+).pathname;
 const schemasConfigurationEntrypoint = new URL(
   "../schemas/src/configuration/schema.ts",
   import.meta.url,
@@ -31,6 +39,14 @@ export default defineConfig({
       {
         find: "@auren/core/configuration",
         replacement: coreConfigurationEntrypoint,
+      },
+      {
+        find: "@auren/core/load/metadata",
+        replacement: coreMetadataEntrypoint,
+      },
+      {
+        find: "@auren/schemas/catalog",
+        replacement: schemasCatalogEntrypoint,
       },
       {
         find: "@auren/schemas/configuration",

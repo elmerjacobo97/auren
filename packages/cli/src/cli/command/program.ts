@@ -3,10 +3,16 @@ import {
   registerInitCommand,
   type RegisterInitCommandOptions,
 } from "../commands/init/init-command.js";
+import {
+  registerInfoCommand,
+  type RegisterInfoCommandOptions,
+} from "../commands/info/info-command.js";
 import type { Terminal } from "../terminal/terminal.js";
 import { readCliVersion } from "../runtime/version.js";
 
-export interface CreateRootProgramOptions extends RegisterInitCommandOptions {}
+export interface CreateRootProgramOptions
+  extends RegisterInitCommandOptions,
+    RegisterInfoCommandOptions {}
 
 export function createRootProgram(
   terminal: Terminal,
@@ -24,6 +30,7 @@ export function createRootProgram(
   });
 
   registerInitCommand(program, terminal, options);
+  registerInfoCommand(program, terminal, options);
 
   return program;
 }

@@ -121,6 +121,8 @@ export const expectedCorePaths = {
 export const expectedCliPaths = {
   "@auren/core/project": ["../core/src/project/detect-project.ts"],
   "@auren/core/configuration": ["../core/src/configuration/configuration.ts"],
+  "@auren/core/load/metadata": ["../core/src/load/load-block-metadata.ts"],
+  "@auren/schemas/catalog": ["../schemas/src/catalog/element-schema.ts"],
   "@auren/schemas/configuration": ["../schemas/src/configuration/schema.ts"],
   "@auren/schemas/taxonomy": ["../schemas/src/taxonomy/schema.ts"],
   "@auren/schemas/element": ["../schemas/src/element/structural-schema.ts"],

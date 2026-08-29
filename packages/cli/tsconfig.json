@@ -6,6 +6,8 @@
       "@auren/core/configuration": [
         "../core/src/configuration/configuration.ts"
       ],
+      "@auren/core/load/metadata": ["../core/src/load/load-block-metadata.ts"],
+      "@auren/schemas/catalog": ["../schemas/src/catalog/element-schema.ts"],
       "@auren/schemas/configuration": [
         "../schemas/src/configuration/schema.ts"
       ],

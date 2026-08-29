@@ -1,10 +1,15 @@
 import { readFileSync } from "node:fs";
-import { EOL } from "node:os";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { EOL, tmpdir } from "node:os";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Command, Option } from "commander";
+import type { CatalogElement } from "@auren/schemas/catalog";
 import { describe, expect, it, vi } from "vitest";
 import { createRootProgram } from "./program.js";
 import { runCli, type RunCliOptions } from "./runner.js";
+import type { CatalogSource } from "../catalog/catalog-source.js";
+import { createLocalCatalogSource } from "../catalog/local-catalog-source.js";
 import { createTerminal } from "../terminal/terminal.js";
 import { readCliVersion } from "../runtime/version.js";
 
@@ -73,8 +78,11 @@ describe("Auren root CLI", () => {
 
     expect(noArguments).toEqual(help);
     expect(noArguments.status).toBe(0);
-    expect(program.commands).toHaveLength(1);
-    expect(program.commands[0]?.name()).toBe("init");
+    expect(program.commands).toHaveLength(2);
+    expect(program.commands.map((command) => command.name())).toEqual([
+      "init",
+      "info",
+    ]);
   });
 
   it("keeps successful output on stdout and failures on stderr", async () => {
@@ -170,5 +178,131 @@ describe("Auren CLI failure contract", () => {
     expect(result.stdout).toBe("");
     expect(result.stderr).toBe("error: Unexpected CLI failure.\n");
     expect(result.stderr).not.toContain("at ");
+  });
+});
+
+const infoElement: CatalogElement = {
+  id: "hero-001",
+  name: "Product launch hero",
+  description: "A responsive product launch hero.",
+  category: "marketing",
+  type: "hero",
+  styles: ["minimal"],
+  industries: ["saas"],
+  features: ["mobile-first", "responsive"],
+  frameworks: ["react"],
+  dependencies: [],
+  files: [{ path: "component.tsx", kind: "component" }],
+  metadata: {},
+};
+
+describe("auren info command", () => {
+  it("advertises info in root help", async () => {
+    const result = await invoke(["--help"]);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("info");
+    expect(result.stderr).toBe("");
+  });
+
+  it("shows info help without accessing the catalog", async () => {
+    const getById = vi.fn(async () => infoElement);
+    const source: CatalogSource = { getById };
+
+    const result = await invoke(["info", "--help"], {
+      catalogSource: source,
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("Usage: auren info <id>");
+    expect(result.stderr).toBe("");
+    expect(getById).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["missing", ["info"]],
+    ["extra", ["info", "hero-001", "extra"]],
+  ] as const)(
+    "rejects %s info arguments before source access",
+    async (_, args) => {
+      const getById = vi.fn(async () => infoElement);
+      const result = await invoke(args, {
+        catalogSource: { getById },
+      });
+
+      expect(result.status).toBe(1);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain("error:");
+      expect(getById).not.toHaveBeenCalled();
+    },
+  );
+
+  it("uses an injected source and writes successful output only to stdout", async () => {
+    const getById = vi.fn(async (id: string) =>
+      id === infoElement.id ? infoElement : undefined,
+    );
+
+    const result = await invoke(["info", "hero-001"], {
+      catalogSource: { getById },
+    });
+
+    expect(result).toEqual({
+      status: 0,
+      stdout: expect.stringContaining("ID: hero-001"),
+      stderr: "",
+    });
+    expect(getById).toHaveBeenCalledWith("hero-001");
+  });
+
+  it("reports unknown IDs without a partial result", async () => {
+    const result = await invoke(["info", "missing-001"], {
+      catalogSource: {
+        getById: vi.fn(async () => undefined),
+      },
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("Catalog element not found");
+  });
+
+  it("reports an unavailable local catalog", async () => {
+    const fixtureRoot = await mkdtemp(path.join(tmpdir(), "auren-cli-runner-"));
+
+    try {
+      const result = await invoke(["info", "hero-001"], {
+        catalogSource: createLocalCatalogSource({
+          catalogRoot: `${fixtureRoot}/missing`,
+        }),
+      });
+
+      expect(result.status).toBe(1);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain("Local catalog is unavailable");
+    } finally {
+      await rm(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("reports invalid local catalog metadata without a stack trace", async () => {
+    const fixtureRoot = await mkdtemp(path.join(tmpdir(), "auren-cli-runner-"));
+    const blockDir = `${fixtureRoot}/marketing/hero/hero-001`;
+
+    try {
+      await mkdir(blockDir, { recursive: true });
+      await writeFile(`${blockDir}/registry.json`, "{ invalid");
+
+      const result = await invoke(["info", "hero-001"], {
+        catalogSource: createLocalCatalogSource({ catalogRoot: fixtureRoot }),
+      });
+
+      expect(result.status).toBe(1);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain("Invalid catalog metadata");
+      expect(result.stderr).toContain(blockDir);
+      expect(result.stderr).not.toContain("\n    at ");
+    } finally {
+      await rm(fixtureRoot, { recursive: true, force: true });
+    }
   });
 });

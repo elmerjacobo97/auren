@@ -1,11 +1,12 @@
 import { CommanderError, type Command } from "commander";
-import { createRootProgram } from "./program.js";
+import { CommandExitError } from "./command-exit-error.js";
+import { createRootProgram, type CreateRootProgramOptions } from "./program.js";
 import {
   createTerminal,
   type Terminal,
   type TerminalOptions,
 } from "../terminal/terminal.js";
-import { CommandExitError } from "../commands/init/init-command.js";
+import type { CatalogSource } from "../catalog/catalog-source.js";
 import type { InitPrompt } from "../commands/init/init-prompt.js";
 
 const successfulControlFlowCodes = new Set([
@@ -15,12 +16,13 @@ const successfulControlFlowCodes = new Set([
 
 export type CliProgramFactory = (
   terminal: Terminal,
-  options?: { prompt?: InitPrompt },
+  options?: CreateRootProgramOptions,
 ) => Command;
 
 export interface RunCliOptions extends TerminalOptions {
   createProgram?: CliProgramFactory;
   prompt?: InitPrompt;
+  catalogSource?: CatalogSource;
 }
 
 function isSuccessfulControlFlow(error: unknown): boolean {
@@ -44,6 +46,7 @@ export async function runCli(
   try {
     const program = (options.createProgram ?? createRootProgram)(terminal, {
       prompt: options.prompt,
+      catalogSource: options.catalogSource,
     });
 
     for (const command of [program, ...program.commands]) {
