@@ -89,12 +89,15 @@ const expectedWorkspaceProfiles = {
     entrypoints: ["src/index.ts"],
   },
 };
-const expectedBlocks = [
-  "blocks/marketing",
-  "blocks/application",
-  "blocks/ecommerce",
-  "blocks/authentication",
-];
+export const expectedBlockCategories = Object.freeze([
+  "marketing",
+  "application-ui",
+  "ecommerce",
+  "authentication",
+]);
+const expectedBlocks = expectedBlockCategories.map(
+  (category) => `blocks/${category}`,
+);
 
 function relativePath(filePath) {
   return path.relative(root, filePath) || ".";
@@ -206,10 +209,11 @@ function validateRootManifest() {
   }
 
   const expectedScripts = {
-    check: "node scripts/verify-workspace.mjs",
+    check:
+      "pnpm --filter @auren/schemas build && node scripts/verify-workspace.mjs && node scripts/verify-blocks.mjs",
     build: "turbo run build",
     dev: "turbo run dev",
-    test: "turbo run test",
+    test: "pnpm --filter @auren/schemas build && node --test scripts/verify-blocks.test.mjs && turbo run test",
     typecheck: "turbo run typecheck",
     lint: "biome lint .",
     "lint:fix": "biome lint --write .",
@@ -243,6 +247,12 @@ function validateRootManifest() {
   if (manifest.devDependencies?.vitest !== expectedVitestVersion) {
     errors.push(
       `package.json: devDependencies.vitest must be ${expectedVitestVersion}`,
+    );
+  }
+
+  if (manifest.devDependencies?.["@auren/schemas"] !== "workspace:*") {
+    errors.push(
+      "package.json: devDependencies.@auren/schemas must use workspace:*",
     );
   }
 }
@@ -870,30 +880,42 @@ function validateRequiredFiles() {
   }
 }
 
-validateRequiredFiles();
-validateRootManifest();
-validateWorkspaceManifest();
-validateWorkspaceRoots();
-validatePackageShells();
-validateBlockCategories();
-validateConfigurationFiles();
-validateTypeScriptProfiles();
-validateBiomeConfiguration();
-reportBlockPackageManifests(absolutePath("blocks"));
+function runWorkspaceVerification() {
+  validateRequiredFiles();
+  validateRootManifest();
+  validateWorkspaceManifest();
+  validateWorkspaceRoots();
+  validatePackageShells();
+  validateBlockCategories();
+  validateConfigurationFiles();
+  validateTypeScriptProfiles();
+  validateBiomeConfiguration();
+  reportBlockPackageManifests(absolutePath("blocks"));
 
-if (errors.length > 0) {
-  console.error("Workspace verification failed:");
-  for (const error of errors) {
-    console.error(`- ${error}`);
+  if (errors.length > 0) {
+    console.error("Workspace verification failed:");
+    for (const error of errors) {
+      console.error(`- ${error}`);
+    }
+    console.error(
+      "Fix the reported path or manifest and run pnpm check again.",
+    );
+    process.exitCode = 1;
+  } else {
+    console.log("Workspace verification passed.");
+    console.log("- 6 private workspaces and TypeScript profiles verified");
+    console.log(
+      "- Schemas and Registry exports, builds, dependencies, and aliases verified",
+    );
+    console.log("- Root Biome and remaining shell contracts verified");
+    console.log("- 4 block categories verified outside the workspace");
   }
-  console.error("Fix the reported path or manifest and run pnpm check again.");
-  process.exitCode = 1;
-} else {
-  console.log("Workspace verification passed.");
-  console.log("- 6 private workspaces and TypeScript profiles verified");
-  console.log(
-    "- Schemas and Registry exports, builds, dependencies, and aliases verified",
-  );
-  console.log("- Root Biome and remaining shell contracts verified");
-  console.log("- 4 block categories verified outside the workspace");
+}
+
+const isMainModule =
+  process.argv[1] !== undefined &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (isMainModule) {
+  runWorkspaceVerification();
 }

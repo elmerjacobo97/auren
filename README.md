@@ -17,7 +17,7 @@ packages/
 
 blocks/
 ├── marketing/           # Catalog source, not a workspace package
-├── application/         # Catalog source, not a workspace package
+├── application-ui/      # Catalog source, not a workspace package
 ├── ecommerce/           # Catalog source, not a workspace package
 └── authentication/      # Catalog source, not a workspace package
 ```

@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      '@auren/schemas':
+        specifier: workspace:*
+        version: link:packages/schemas
       '@biomejs/biome':
         specifier: 2.5.10
         version: 2.5.10

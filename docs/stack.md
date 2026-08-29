@@ -62,7 +62,7 @@ auren/
 │
 ├── blocks/
 │   ├── marketing/
-│   ├── application/
+│   ├── application-ui/
 │   ├── ecommerce/
 │   └── authentication/
 │
