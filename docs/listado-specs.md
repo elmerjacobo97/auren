@@ -261,7 +261,7 @@ Objetivo: mantener configuración persistente dentro de cada proyecto consumidor
 
 ## Spec 12 — CLI Foundation
 
-- [ ] Pendiente
+- [x] Implementada y archivada
 
 Crear `packages/cli`.
 
