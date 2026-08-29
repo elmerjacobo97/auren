@@ -387,7 +387,7 @@ Objetivo: instalar código de Auren dentro del proyecto del usuario.
 
 ## Spec 17 — Dependency Resolution
 
-- [ ] Pendiente
+- [x] Implementada y archivada
 
 Implementar resolución automática de dependencias.
 
