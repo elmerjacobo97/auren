@@ -308,7 +308,7 @@ Objetivo: inicializar correctamente cualquier proyecto consumidor.
 
 ## Spec 14 — `auren info`
 
-- [ ] Pendiente
+- [x] Implementada y archivada
 
 Implementar:
 
