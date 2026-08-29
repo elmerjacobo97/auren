@@ -332,7 +332,7 @@ Objetivo: permitir inspeccionar un elemento antes de instalarlo.
 
 ## Spec 15 — `auren search`
 
-- [ ] Pendiente
+- [x] Implementada y archivada
 
 Implementar búsqueda desde CLI.
 

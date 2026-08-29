@@ -3,13 +3,13 @@
 ## Current State
 
 - This is a pnpm 11.21.0/Turborepo monorepo requiring Node `>=20.19.0 <26`.
-- `@auren/schemas` defines catalog contracts, `@auren/registry` provides the local in-memory Registry, `@auren/core` holds shared catalog logic (search, resolve, dependencies, loading, compatibility, project detection, configuration), and `@auren/cli` ships the `auren` bin with `--help`, `--version`, `init`, and `info`. `apps/web` and `packages/mcp` remain private `export {}` shells.
+- `@auren/schemas` defines catalog contracts, `@auren/registry` provides the local in-memory Registry, `@auren/core` holds shared catalog logic (search, resolve, dependencies, loading, compatibility, project detection, configuration), and `@auren/cli` ships the `auren` bin with `--help`, `--version`, `init`, `info`, and `search`. `apps/web` and `packages/mcp` remain private `export {}` shells.
 - `pnpm build` builds Schemas before Registry/Core/CLI; `pnpm dev` has no workspace implementation yet.
 - `blocks/` is versioned catalog source, not a workspace, and now holds real catalog content across `marketing/`, `application-ui/`, `ecommerce/`, and `authentication/`. It follows the block standard in `blocks/README.md`; never add package manifests beneath it.
 
 ## Spec Progress
 
-- Specs 01–14 in `docs/listado-specs.md` are implemented and archived; the next spec is Spec 15 — `auren search`.
+- Specs 01–15 in `docs/listado-specs.md` are implemented and archived; the next spec is Spec 16.
 - Keep the checkboxes in `docs/listado-specs.md` synchronized with implementation status, marking a spec only after its OpenSpec change is implemented and archived.
 - Use `openspec/changes/archive/` as the record of completed changes; active OpenSpec work belongs under `openspec/changes/`.
 
