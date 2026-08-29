@@ -285,7 +285,7 @@ Objetivo: establecer la infraestructura del CLI.
 
 ## Spec 13 — `auren init`
 
-- [ ] Pendiente
+- [x] Implementada y archivada
 
 Implementar:
 
