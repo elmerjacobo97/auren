@@ -4,6 +4,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import {
+  expectedCliBin,
+  expectedCliDependencies,
+  expectedCliScripts,
   expectedCoreExports,
   expectedCorePaths,
   expectedSchemasExports,
@@ -30,6 +33,40 @@ test("Core manifest matches the pinned executable-package contract", () => {
     test: "vitest run",
     typecheck: "tsc --project tsconfig.json --noEmit",
   });
+});
+
+test("CLI manifest and TypeScript settings match the executable contract", () => {
+  const manifest = readJson("packages/cli/package.json");
+  const sourceConfig = readJson("packages/cli/tsconfig.json");
+  const buildConfig = readJson("packages/cli/tsconfig.build.json");
+  const source = readFileSync(
+    path.join(root, "packages/cli/src/cli/index.ts"),
+    "utf8",
+  );
+
+  assert.deepEqual(manifest.bin, expectedCliBin);
+  assert.deepEqual(manifest.dependencies, expectedCliDependencies);
+  assert.deepEqual(manifest.devDependencies ?? {}, {});
+  assert.deepEqual(manifest.scripts, expectedCliScripts);
+  assert.equal("exports" in manifest, false);
+  assert.equal("main" in manifest, false);
+  assert.equal("module" in manifest, false);
+  assert.deepEqual(sourceConfig.include, ["src/**/*.ts"]);
+  assert.equal(buildConfig.extends, "./tsconfig.json");
+  assert.deepEqual(buildConfig.include, ["src/cli/index.ts"]);
+  assert.equal(buildConfig.compilerOptions?.noEmit, false);
+  assert.equal(buildConfig.compilerOptions?.outDir, "dist");
+  assert.equal(buildConfig.compilerOptions?.rootDir, "src/cli");
+  assert.equal(buildConfig.compilerOptions?.sourceMap, true);
+  assert.equal(source.startsWith("#!/usr/bin/env node"), true);
+  assert.equal(
+    existsSync(path.join(root, "packages/cli/vitest.config.ts")),
+    true,
+  );
+  assert.equal(
+    existsSync(path.join(root, "packages/cli/scripts/verify-dist.mjs")),
+    true,
+  );
 });
 
 test("Schemas manifest and TypeScript settings match the capability contract", () => {
