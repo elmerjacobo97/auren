@@ -1,0 +1,25 @@
+{
+  "id": "sidebar-001",
+  "name": "Admin Sidebar",
+  "description": "A responsive administration sidebar with grouped navigation, account actions, and a mobile drawer.",
+  "category": "application-ui",
+  "type": "sidebar",
+  "styles": ["minimal"],
+  "industries": ["saas", "fintech", "developer-tools", "ecommerce"],
+  "features": ["dark-mode", "mobile-first", "responsive", "sidebar"],
+  "frameworks": ["react"],
+  "dependencies": [],
+  "files": [
+    { "path": "component.tsx", "kind": "component" },
+    { "path": "utilities/types.ts", "kind": "utility" }
+  ],
+  "metadata": {
+    "author": "Auren",
+    "license": "MIT",
+    "usage": "Use as the primary navigation for an authenticated administration dashboard.",
+    "viewport": {
+      "minWidth": 320,
+      "desktopBreakpoint": 1024
+    }
+  }
+}

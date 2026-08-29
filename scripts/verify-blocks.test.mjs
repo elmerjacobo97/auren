@@ -328,7 +328,7 @@ test("rejects invalid asset filenames and asset directory segments", async () =>
   });
 });
 
-test("does not require a committed block fixture in the real catalog", async () => {
+test("recognizes the committed block fixture in the real catalog", async () => {
   const marker = await readFile(
     path.join(process.cwd(), "blocks", "marketing", ".gitkeep"),
     "utf8",
@@ -338,5 +338,5 @@ test("does not require a committed block fixture in the real catalog", async () 
   const result = verifyBlocks();
 
   assert.deepEqual(result.errors, []);
-  assert.equal(result.blockCount, 0);
+  assert.equal(result.blockCount, 1);
 });
