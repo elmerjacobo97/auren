@@ -1,7 +1,17 @@
 import { Command } from "commander";
+import {
+  registerInitCommand,
+  type RegisterInitCommandOptions,
+} from "../commands/init/init-command.js";
+import type { Terminal } from "../terminal/terminal.js";
 import { readCliVersion } from "../runtime/version.js";
 
-export function createRootProgram(): Command {
+export interface CreateRootProgramOptions extends RegisterInitCommandOptions {}
+
+export function createRootProgram(
+  terminal: Terminal,
+  options: CreateRootProgramOptions = {},
+): Command {
   const program = new Command();
 
   program
@@ -12,6 +22,8 @@ export function createRootProgram(): Command {
   program.action(() => {
     program.outputHelp();
   });
+
+  registerInitCommand(program, terminal, options);
 
   return program;
 }

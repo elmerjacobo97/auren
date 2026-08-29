@@ -12,6 +12,8 @@
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@auren/core": "workspace:*",
+    "@auren/schemas": "workspace:*",
     "@clack/prompts": "1.7.0",
     "commander": "14.0.3",
     "picocolors": "1.1.1"

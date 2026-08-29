@@ -5,6 +5,7 @@ import { runWorkspaceVerification } from "./verify-workspace/run.mjs";
 export {
   expectedCliBin,
   expectedCliDependencies,
+  expectedCliPaths,
   expectedCliScripts,
   expectedCoreExports,
   expectedCorePaths,

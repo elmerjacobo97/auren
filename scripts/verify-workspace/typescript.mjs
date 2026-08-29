@@ -1,6 +1,7 @@
 import {
   arraysEqual,
   errors,
+  expectedCliPaths,
   expectedCorePaths,
   expectedRegistryPaths,
   expectedSchemasPaths,
@@ -137,6 +138,21 @@ export function validateTypeScriptProfiles() {
       ) {
         errors.push(
           `${configPath}: compilerOptions.paths must contain only the source alias and the Registry and Schemas capability aliases used by Core`,
+        );
+      }
+    } else if (relative === "packages/cli") {
+      const compilerOptions = tsconfig.compilerOptions ?? {};
+      const paths = compilerOptions.paths ?? {};
+
+      if (
+        Object.keys(paths).length !== Object.keys(expectedCliPaths).length ||
+        Object.entries(expectedCliPaths).some(
+          ([alias, expectedTargets]) =>
+            !arraysEqual(paths[alias], expectedTargets),
+        )
+      ) {
+        errors.push(
+          `${configPath}: compilerOptions.paths must contain only the Core and Schemas capability aliases used by the CLI`,
         );
       }
     } else if ("compilerOptions" in tsconfig) {

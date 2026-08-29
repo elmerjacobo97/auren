@@ -437,7 +437,7 @@ export function validateCliManifest(manifest) {
     )
   ) {
     errors.push(
-      "packages/cli/package.json: runtime dependencies must contain only the pinned Commander, @clack/prompts, and picocolors versions",
+      "packages/cli/package.json: runtime dependencies must contain only the pinned Commander, @clack/prompts, picocolors, and the Auren workspace packages at workspace:*",
     );
   }
 

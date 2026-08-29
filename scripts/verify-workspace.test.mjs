@@ -6,6 +6,7 @@ import test from "node:test";
 import {
   expectedCliBin,
   expectedCliDependencies,
+  expectedCliPaths,
   expectedCliScripts,
   expectedCoreExports,
   expectedCorePaths,
@@ -52,6 +53,7 @@ test("CLI manifest and TypeScript settings match the executable contract", () =>
   assert.equal("main" in manifest, false);
   assert.equal("module" in manifest, false);
   assert.deepEqual(sourceConfig.include, ["src/**/*.ts"]);
+  assert.deepEqual(sourceConfig.compilerOptions?.paths, expectedCliPaths);
   assert.equal(buildConfig.extends, "./tsconfig.json");
   assert.deepEqual(buildConfig.include, ["src/cli/index.ts"]);
   assert.equal(buildConfig.compilerOptions?.noEmit, false);

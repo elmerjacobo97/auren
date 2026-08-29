@@ -44,6 +44,10 @@ if (!help.stdout.includes("Usage: auren [options]")) {
   throw new Error("Built CLI help did not contain the root usage line");
 }
 
+if (!help.stdout.includes("init")) {
+  throw new Error("Built CLI help did not advertise the init command");
+}
+
 if (help.stderr !== "") {
   throw new Error("Built CLI help wrote to stderr");
 }

@@ -18,6 +18,8 @@ export const expectedTypecheckScript = "tsc --project tsconfig.json --noEmit";
 export const expectedRegistryBuildScript =
   "tsc --project tsconfig.build.json && node scripts/verify-dist.mjs";
 export const expectedCliDependencies = {
+  "@auren/core": "workspace:*",
+  "@auren/schemas": "workspace:*",
   "@clack/prompts": "1.7.0",
   commander: "14.0.3",
   picocolors: "1.1.1",
@@ -115,6 +117,13 @@ export const expectedCorePaths = {
   "@auren/schemas/element": ["../schemas/src/element/structural-schema.ts"],
   "@auren/schemas/taxonomy": ["../schemas/src/taxonomy/schema.ts"],
   "@auren/schemas/configuration": ["../schemas/src/configuration/schema.ts"],
+};
+export const expectedCliPaths = {
+  "@auren/core/project": ["../core/src/project/detect-project.ts"],
+  "@auren/core/configuration": ["../core/src/configuration/configuration.ts"],
+  "@auren/schemas/configuration": ["../schemas/src/configuration/schema.ts"],
+  "@auren/schemas/taxonomy": ["../schemas/src/taxonomy/schema.ts"],
+  "@auren/schemas/element": ["../schemas/src/element/structural-schema.ts"],
 };
 export const expectedWorkspaceProfiles = {
   "apps/web": {

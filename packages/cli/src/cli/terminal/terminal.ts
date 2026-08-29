@@ -8,12 +8,14 @@ export interface TerminalOptions {
   stdout?: TerminalWriter;
   stderr?: TerminalWriter;
   color?: boolean;
+  interactive?: boolean;
 }
 
 export interface Terminal {
   writeOut(text: string): void;
   writeErr(text: string): void;
   error(error: unknown): void;
+  readonly interactive: boolean;
 }
 
 function toWritable(writer: TerminalWriter): Writable {
@@ -52,6 +54,12 @@ export function createTerminal(options: TerminalOptions = {}): Terminal {
   const colorEnabled =
     options.color ?? (pc.isColorSupported && (isTty(stdout) || isTty(stderr)));
   const colors = pc.createColors(colorEnabled);
+  const interactive =
+    options.interactive ??
+    (typeof options.stdout === "undefined" &&
+      typeof options.stderr === "undefined" &&
+      process.stdin.isTTY === true &&
+      isTty(stdout));
 
   return {
     writeOut(text) {
@@ -67,6 +75,7 @@ export function createTerminal(options: TerminalOptions = {}): Terminal {
         withGuide: false,
       });
     },
+    interactive,
   };
 }
 

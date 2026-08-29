@@ -3,6 +3,19 @@
   "compilerOptions": {
     "noEmit": false,
     "outDir": "dist",
+    "paths": {
+      "@auren/core/project": ["../core/dist/project/detect-project.d.ts"],
+      "@auren/core/configuration": [
+        "../core/dist/configuration/configuration.d.ts"
+      ],
+      "@auren/schemas/configuration": [
+        "../schemas/dist/configuration/schema.d.ts"
+      ],
+      "@auren/schemas/taxonomy": ["../schemas/dist/taxonomy/schema.d.ts"],
+      "@auren/schemas/element": [
+        "../schemas/dist/element/structural-schema.d.ts"
+      ]
+    },
     "rootDir": "src/cli",
     "sourceMap": true
   },

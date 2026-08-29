@@ -69,11 +69,12 @@ describe("Auren root CLI", () => {
   it("shows help without performing domain work when no arguments are given", async () => {
     const noArguments = await invoke();
     const help = await invoke(["--help"]);
-    const program = createRootProgram();
+    const program = createRootProgram(createTerminal({ color: false }));
 
     expect(noArguments).toEqual(help);
     expect(noArguments.status).toBe(0);
-    expect(program.commands).toHaveLength(0);
+    expect(program.commands).toHaveLength(1);
+    expect(program.commands[0]?.name()).toBe("init");
   });
 
   it("keeps successful output on stdout and failures on stderr", async () => {
