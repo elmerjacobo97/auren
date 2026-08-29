@@ -441,7 +441,7 @@ Objetivo: separar el catálogo fuente del formato consumido públicamente.
 
 ## Spec 20 — Public Registry
 
-- [ ] Pendiente
+- [x] Implementada y completada
 
 Publicar el Registry como recursos estáticos.
 

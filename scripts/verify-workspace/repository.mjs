@@ -183,6 +183,7 @@ export function validateRequiredFiles() {
     ".gitignore",
     "README.md",
     "scripts/verify-workspace.mjs",
+    "scripts/publish-registry.mjs",
   ]) {
     requireFile(relative);
   }
