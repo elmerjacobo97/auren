@@ -1,0 +1,25 @@
+{
+  "id": "cta-001",
+  "name": "Closing call to action",
+  "description": "A bold closing call-to-action panel with two named actions and a decorative inline SVG backdrop.",
+  "category": "marketing",
+  "type": "cta",
+  "styles": ["bold"],
+  "industries": ["saas", "ai"],
+  "features": ["dark-mode", "mobile-first", "responsive", "two-cta"],
+  "frameworks": ["react"],
+  "dependencies": [],
+  "files": [
+    { "path": "component.tsx", "kind": "component" },
+    { "path": "utilities/types.ts", "kind": "utility" }
+  ],
+  "metadata": {
+    "author": "Auren",
+    "license": "MIT",
+    "usage": "Use as the final conversion section before the footer.",
+    "viewport": {
+      "minWidth": 320,
+      "desktopBreakpoint": 1024
+    }
+  }
+}

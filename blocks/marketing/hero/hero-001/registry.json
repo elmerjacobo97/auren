@@ -1,0 +1,25 @@
+{
+  "id": "hero-001",
+  "name": "Product launch hero",
+  "description": "A mobile-first product launch hero with an eyebrow badge, two calls to action, and a decorative inline SVG product preview.",
+  "category": "marketing",
+  "type": "hero",
+  "styles": ["bold"],
+  "industries": ["saas", "ai"],
+  "features": ["dark-mode", "mobile-first", "responsive", "two-cta"],
+  "frameworks": ["react"],
+  "dependencies": [],
+  "files": [
+    { "path": "component.tsx", "kind": "component" },
+    { "path": "utilities/types.ts", "kind": "utility" }
+  ],
+  "metadata": {
+    "author": "Auren",
+    "license": "MIT",
+    "usage": "Use as the opening section of a product launch or marketing landing page.",
+    "viewport": {
+      "minWidth": 320,
+      "desktopBreakpoint": 1024
+    }
+  }
+}

@@ -82,7 +82,7 @@ must be used exactly as written.
 | Dimension | Values collection | Schema | Type | Canonical identifiers |
 | --- | --- | --- | --- | --- |
 | Category | `categoryValues` | `categorySchema` | `Category` | `marketing`, `application-ui`, `ecommerce`, `authentication` |
-| Block type | `blockTypeValues` | `blockTypeSchema` | `BlockType` | `hero`, `pricing`, `features`, `sidebar`, `table` |
+| Block type | `blockTypeValues` | `blockTypeSchema` | `BlockType` | `hero`, `navbar`, `logo-cloud`, `features`, `stats`, `pricing`, `testimonials`, `faq`, `cta`, `footer`, `sidebar`, `table` |
 | Style | `styleValues` | `styleSchema` | `Style` | `minimal`, `bold`, `editorial`, `corporate`, `glass`, `brutalist`, `luxury`, `developer` |
 | Industry | `industryValues` | `industrySchema` | `Industry` | `saas`, `fintech`, `ai`, `developer-tools`, `ecommerce`, `education`, `portfolio`, `agency` |
 | Feature | `featureValues` | `featureSchema` | `Feature` | `dark-mode`, `mobile-first`, `responsive`, `product-screenshot`, `two-cta`, `animated`, `sidebar`, `search`, `command-palette` |

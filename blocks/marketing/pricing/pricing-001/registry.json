@@ -1,0 +1,25 @@
+{
+  "id": "pricing-001",
+  "name": "Plan comparison pricing",
+  "description": "Accessible pricing plan cards with named calls to action and table-free comparison lists.",
+  "category": "marketing",
+  "type": "pricing",
+  "styles": ["corporate"],
+  "industries": ["saas", "fintech"],
+  "features": ["dark-mode", "mobile-first", "responsive"],
+  "frameworks": ["react"],
+  "dependencies": [],
+  "files": [
+    { "path": "component.tsx", "kind": "component" },
+    { "path": "utilities/types.ts", "kind": "utility" }
+  ],
+  "metadata": {
+    "author": "Auren",
+    "license": "MIT",
+    "usage": "Use to compare subscription plans with clear per-plan actions.",
+    "viewport": {
+      "minWidth": 320,
+      "desktopBreakpoint": 1024
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "id": "footer-001",
+  "name": "Corporate site footer",
+  "description": "A responsive site footer with grouped navigation landmarks, social links with accessible names, and a copyright line.",
+  "category": "marketing",
+  "type": "footer",
+  "styles": ["corporate"],
+  "industries": ["saas", "agency"],
+  "features": ["dark-mode", "mobile-first", "responsive"],
+  "frameworks": ["react"],
+  "dependencies": [],
+  "files": [
+    { "path": "component.tsx", "kind": "component" },
+    { "path": "utilities/types.ts", "kind": "utility" }
+  ],
+  "metadata": {
+    "author": "Auren",
+    "license": "MIT",
+    "usage": "Use as the closing footer for a marketing or product site.",
+    "viewport": {
+      "minWidth": 320,
+      "desktopBreakpoint": 1024
+    }
+  }
+}

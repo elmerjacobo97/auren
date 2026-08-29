@@ -1,0 +1,25 @@
+{
+  "id": "stats-001",
+  "name": "Platform stats band",
+  "description": "A responsive statistics band using semantic figure and list markup with static values and no motion.",
+  "category": "marketing",
+  "type": "stats",
+  "styles": ["corporate"],
+  "industries": ["saas", "fintech"],
+  "features": ["dark-mode", "mobile-first", "responsive"],
+  "frameworks": ["react"],
+  "dependencies": [],
+  "files": [
+    { "path": "component.tsx", "kind": "component" },
+    { "path": "utilities/types.ts", "kind": "utility" }
+  ],
+  "metadata": {
+    "author": "Auren",
+    "license": "MIT",
+    "usage": "Use to present key platform or business metrics mid-page.",
+    "viewport": {
+      "minWidth": 320,
+      "desktopBreakpoint": 1024
+    }
+  }
+}

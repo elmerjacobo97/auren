@@ -1,0 +1,25 @@
+{
+  "id": "features-001",
+  "name": "Feature grid",
+  "description": "A responsive feature grid rendered as a semantic list with inline SVG icons and short benefit copy.",
+  "category": "marketing",
+  "type": "features",
+  "styles": ["minimal"],
+  "industries": ["saas", "developer-tools"],
+  "features": ["dark-mode", "mobile-first", "responsive"],
+  "frameworks": ["react"],
+  "dependencies": [],
+  "files": [
+    { "path": "component.tsx", "kind": "component" },
+    { "path": "utilities/types.ts", "kind": "utility" }
+  ],
+  "metadata": {
+    "author": "Auren",
+    "license": "MIT",
+    "usage": "Use to present product capabilities below the hero or logo cloud.",
+    "viewport": {
+      "minWidth": 320,
+      "desktopBreakpoint": 1024
+    }
+  }
+}

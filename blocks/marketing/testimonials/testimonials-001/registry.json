@@ -1,0 +1,25 @@
+{
+  "id": "testimonials-001",
+  "name": "Customer testimonials",
+  "description": "An editorial testimonial grid with blockquotes, decorative star ratings, and initials-based avatars.",
+  "category": "marketing",
+  "type": "testimonials",
+  "styles": ["editorial"],
+  "industries": ["agency", "ecommerce"],
+  "features": ["dark-mode", "mobile-first", "responsive"],
+  "frameworks": ["react"],
+  "dependencies": [],
+  "files": [
+    { "path": "component.tsx", "kind": "component" },
+    { "path": "utilities/types.ts", "kind": "utility" }
+  ],
+  "metadata": {
+    "author": "Auren",
+    "license": "MIT",
+    "usage": "Use to present customer quotes with attribution mid or late page.",
+    "viewport": {
+      "minWidth": 320,
+      "desktopBreakpoint": 768
+    }
+  }
+}

@@ -9,8 +9,15 @@ export const categoryValues = Object.freeze([
 
 export const blockTypeValues = Object.freeze([
   "hero",
-  "pricing",
+  "navbar",
+  "logo-cloud",
   "features",
+  "stats",
+  "pricing",
+  "testimonials",
+  "faq",
+  "cta",
+  "footer",
   "sidebar",
   "table",
 ] as const);

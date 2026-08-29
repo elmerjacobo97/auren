@@ -1,0 +1,25 @@
+{
+  "id": "logo-cloud-001",
+  "name": "Customer logo cloud",
+  "description": "A responsive logo cloud with decorative inline SVG marks and readable company names in a semantic list.",
+  "category": "marketing",
+  "type": "logo-cloud",
+  "styles": ["minimal"],
+  "industries": ["saas", "agency"],
+  "features": ["dark-mode", "mobile-first", "responsive"],
+  "frameworks": ["react"],
+  "dependencies": [],
+  "files": [
+    { "path": "component.tsx", "kind": "component" },
+    { "path": "utilities/types.ts", "kind": "utility" }
+  ],
+  "metadata": {
+    "author": "Auren",
+    "license": "MIT",
+    "usage": "Use below the hero to show customer or partner logos.",
+    "viewport": {
+      "minWidth": 320,
+      "desktopBreakpoint": 1024
+    }
+  }
+}

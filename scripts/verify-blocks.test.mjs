@@ -338,5 +338,5 @@ test("recognizes the committed block fixture in the real catalog", async () => {
   const result = verifyBlocks();
 
   assert.deepEqual(result.errors, []);
-  assert.equal(result.blockCount, 1);
+  assert.equal(result.blockCount, 11);
 });

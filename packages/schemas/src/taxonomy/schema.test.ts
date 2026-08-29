@@ -33,7 +33,20 @@ const dimensions = [
     name: "block types",
     values: blockTypeValues,
     schema: blockTypeSchema,
-    expected: ["hero", "pricing", "features", "sidebar", "table"],
+    expected: [
+      "hero",
+      "navbar",
+      "logo-cloud",
+      "features",
+      "stats",
+      "pricing",
+      "testimonials",
+      "faq",
+      "cta",
+      "footer",
+      "sidebar",
+      "table",
+    ],
   },
   {
     name: "styles",
@@ -115,6 +128,34 @@ describe("catalog taxonomy", () => {
     expect(blockTypeSchema.parse("sidebar")).toBe("sidebar");
     expect(featureSchema.parse("sidebar")).toBe("sidebar");
     expect(styleSchema.safeParse("dark-mode").success).toBe(false);
+  });
+
+  it("accepts every initial-catalog marketing block type unchanged", () => {
+    const marketingTypes = [
+      "hero",
+      "navbar",
+      "logo-cloud",
+      "features",
+      "stats",
+      "pricing",
+      "testimonials",
+      "faq",
+      "cta",
+      "footer",
+    ] as const;
+
+    for (const type of marketingTypes) {
+      const blockType: BlockType = type;
+
+      expect(blockTypeSchema.parse(type)).toBe(type);
+      expect(blockType).toBe(type);
+    }
+  });
+
+  it("rejects marketing section names that were not adopted", () => {
+    const result = blockTypeSchema.safeParse("blog");
+
+    expect(result.success).toBe(false);
   });
 
   it("rejects unknown and non-canonical values without normalization", () => {

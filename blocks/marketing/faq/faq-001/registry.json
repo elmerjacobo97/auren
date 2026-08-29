@@ -1,0 +1,25 @@
+{
+  "id": "faq-001",
+  "name": "FAQ disclosure list",
+  "description": "A frequently asked questions section using native details and summary elements for keyboard-operable disclosure.",
+  "category": "marketing",
+  "type": "faq",
+  "styles": ["minimal"],
+  "industries": ["saas", "education"],
+  "features": ["dark-mode", "mobile-first", "responsive"],
+  "frameworks": ["react"],
+  "dependencies": [],
+  "files": [
+    { "path": "component.tsx", "kind": "component" },
+    { "path": "utilities/types.ts", "kind": "utility" }
+  ],
+  "metadata": {
+    "author": "Auren",
+    "license": "MIT",
+    "usage": "Use near the end of a marketing page to answer common objections.",
+    "viewport": {
+      "minWidth": 320,
+      "desktopBreakpoint": 1024
+    }
+  }
+}

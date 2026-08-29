@@ -1,0 +1,25 @@
+{
+  "id": "navbar-001",
+  "name": "Marketing Navbar",
+  "description": "A responsive marketing navigation bar with an inline brand mark, desktop links, a call-to-action link, and a mobile disclosure menu.",
+  "category": "marketing",
+  "type": "navbar",
+  "styles": ["minimal"],
+  "industries": ["saas", "developer-tools"],
+  "features": ["dark-mode", "mobile-first", "responsive"],
+  "frameworks": ["react"],
+  "dependencies": [],
+  "files": [
+    { "path": "component.tsx", "kind": "component" },
+    { "path": "utilities/types.ts", "kind": "utility" }
+  ],
+  "metadata": {
+    "author": "Auren",
+    "license": "MIT",
+    "usage": "Use as the top-of-page navigation for a marketing or product site.",
+    "viewport": {
+      "minWidth": 320,
+      "desktopBreakpoint": 768
+    }
+  }
+}
