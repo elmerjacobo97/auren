@@ -1,0 +1,28 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "declaration": true,
+    "declarationMap": true,
+    "noEmit": false,
+    "outDir": "dist",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@auren/registry": ["../registry/dist/index.d.ts"],
+      "@auren/schemas/catalog": ["../schemas/dist/catalog/element-schema.d.ts"],
+      "@auren/schemas/element": [
+        "../schemas/dist/element/structural-schema.d.ts"
+      ],
+      "@auren/schemas/taxonomy": ["../schemas/dist/taxonomy/schema.d.ts"]
+    },
+    "rootDir": "src",
+    "sourceMap": true
+  },
+  "include": [
+    "src/search/search.ts",
+    "src/resolve/resolve.ts",
+    "src/dependencies/dependency-plan.ts",
+    "src/load/load-block-metadata.ts",
+    "src/load/load-block-files.ts",
+    "src/compatibility/compatibility.ts"
+  ]
+}

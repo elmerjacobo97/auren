@@ -48,7 +48,40 @@ const expectedRegistryExports = {
     types: "./dist/index.d.ts",
   },
 };
+export const expectedCoreExports = {
+  "./search": {
+    import: "./dist/search/search.js",
+    types: "./dist/search/search.d.ts",
+  },
+  "./resolve": {
+    import: "./dist/resolve/resolve.js",
+    types: "./dist/resolve/resolve.d.ts",
+  },
+  "./dependencies": {
+    import: "./dist/dependencies/dependency-plan.js",
+    types: "./dist/dependencies/dependency-plan.d.ts",
+  },
+  "./load/metadata": {
+    import: "./dist/load/load-block-metadata.js",
+    types: "./dist/load/load-block-metadata.d.ts",
+  },
+  "./load/files": {
+    import: "./dist/load/load-block-files.js",
+    types: "./dist/load/load-block-files.d.ts",
+  },
+  "./compatibility": {
+    import: "./dist/compatibility/compatibility.js",
+    types: "./dist/compatibility/compatibility.d.ts",
+  },
+};
 const expectedRegistryPaths = {
+  "@auren/schemas/catalog": ["../schemas/src/catalog/element-schema.ts"],
+  "@auren/schemas/element": ["../schemas/src/element/structural-schema.ts"],
+  "@auren/schemas/taxonomy": ["../schemas/src/taxonomy/schema.ts"],
+};
+export const expectedCorePaths = {
+  "@/*": ["./src/*"],
+  "@auren/registry": ["../registry/src/index.ts"],
   "@auren/schemas/catalog": ["../schemas/src/catalog/element-schema.ts"],
   "@auren/schemas/element": ["../schemas/src/element/structural-schema.ts"],
   "@auren/schemas/taxonomy": ["../schemas/src/taxonomy/schema.ts"],
@@ -76,7 +109,14 @@ const expectedWorkspaceProfiles = {
   "packages/core": {
     extends: "../../tsconfig.node.json",
     include: ["src/**/*.ts"],
-    entrypoints: ["src/index.ts"],
+    entrypoints: [
+      "src/search/search.ts",
+      "src/resolve/resolve.ts",
+      "src/dependencies/dependency-plan.ts",
+      "src/load/load-block-metadata.ts",
+      "src/load/load-block-files.ts",
+      "src/compatibility/compatibility.ts",
+    ],
   },
   "packages/cli": {
     extends: "../../tsconfig.node.json",
@@ -213,7 +253,7 @@ function validateRootManifest() {
       "pnpm --filter @auren/schemas build && node scripts/verify-workspace.mjs && node scripts/verify-blocks.mjs",
     build: "turbo run build",
     dev: "turbo run dev",
-    test: "pnpm --filter @auren/schemas build && node --test scripts/verify-blocks.test.mjs && turbo run test",
+    test: "pnpm --filter @auren/schemas build && node --test scripts/verify-blocks.test.mjs scripts/verify-workspace.test.mjs && turbo run test",
     typecheck: "turbo run typecheck",
     lint: "biome lint .",
     "lint:fix": "biome lint --write .",
@@ -463,6 +503,119 @@ function validateRegistryManifest(manifest) {
   requireFile("packages/registry/scripts/verify-dist.mjs");
 }
 
+function validateCoreManifest(manifest) {
+  const expectedDependencies = {
+    "@auren/registry": "workspace:*",
+    "@auren/schemas": "workspace:*",
+  };
+
+  for (const [dependency, version] of Object.entries(expectedDependencies)) {
+    if (manifest.dependencies?.[dependency] !== version) {
+      errors.push(
+        `packages/core/package.json: runtime dependency ${dependency} must be ${version}`,
+      );
+    }
+  }
+
+  if (
+    Object.keys(manifest.dependencies ?? {}).some(
+      (dependency) => !Object.hasOwn(expectedDependencies, dependency),
+    )
+  ) {
+    errors.push(
+      "packages/core/package.json: runtime dependencies must contain only @auren/registry and @auren/schemas at workspace:*",
+    );
+  }
+
+  if (Object.keys(manifest.devDependencies ?? {}).length > 0) {
+    errors.push(
+      "packages/core/package.json: build and test tools must remain root devDependencies",
+    );
+  }
+
+  const exports = manifest.exports;
+  const exportNames = Object.keys(exports ?? {});
+  const hasExpectedExports = Object.entries(expectedCoreExports).every(
+    ([name, expected]) => {
+      const entry = exports?.[name];
+
+      return (
+        entry &&
+        Object.keys(entry).length === 2 &&
+        entry.import === expected.import &&
+        entry.types === expected.types
+      );
+    },
+  );
+
+  if (
+    !exports ||
+    exportNames.length !== Object.keys(expectedCoreExports).length ||
+    exportNames.some((name) => !Object.hasOwn(expectedCoreExports, name)) ||
+    !hasExpectedExports
+  ) {
+    errors.push(
+      "packages/core/package.json: exports must expose only the generated Core capability entrypoints and declarations",
+    );
+  }
+
+  const buildConfig = readJson("packages/core/tsconfig.build.json");
+
+  if (!buildConfig) {
+    return;
+  }
+
+  if (buildConfig.extends !== "./tsconfig.json") {
+    errors.push(
+      "packages/core/tsconfig.build.json: extends must be ./tsconfig.json",
+    );
+  }
+
+  const compilerOptions = buildConfig.compilerOptions ?? {};
+
+  if (compilerOptions.declaration !== true) {
+    errors.push(
+      "packages/core/tsconfig.build.json: compilerOptions.declaration must be true",
+    );
+  }
+
+  if (compilerOptions.noEmit !== false) {
+    errors.push(
+      "packages/core/tsconfig.build.json: compilerOptions.noEmit must be false",
+    );
+  }
+
+  if (compilerOptions.outDir !== "dist") {
+    errors.push(
+      'packages/core/tsconfig.build.json: compilerOptions.outDir must be "dist"',
+    );
+  }
+
+  if (compilerOptions.rootDir !== "src") {
+    errors.push(
+      'packages/core/tsconfig.build.json: compilerOptions.rootDir must be "src"',
+    );
+  }
+
+  if (
+    !arraysEqual(buildConfig.include, [
+      "src/search/search.ts",
+      "src/resolve/resolve.ts",
+      "src/dependencies/dependency-plan.ts",
+      "src/load/load-block-metadata.ts",
+      "src/load/load-block-files.ts",
+      "src/compatibility/compatibility.ts",
+    ])
+  ) {
+    errors.push(
+      "packages/core/tsconfig.build.json: include must contain only the six Core capability entrypoints",
+    );
+  }
+
+  requireFile("packages/core/vitest.config.ts");
+  requireFile("packages/core/scripts/verify-dist.mjs");
+}
+
 function validatePackageShells() {
   const packageNames = new Set(Object.values(expectedPackages));
 
@@ -504,7 +657,7 @@ function validatePackageShells() {
             test: "vitest run",
             typecheck: expectedTypecheckScript,
           }
-        : relative === "packages/registry"
+        : relative === "packages/registry" || relative === "packages/core"
           ? {
               build: expectedRegistryBuildScript,
               test: "vitest run",
@@ -535,7 +688,8 @@ function validatePackageShells() {
         field in manifest &&
         !(
           (relative === "packages/schemas" ||
-            relative === "packages/registry") &&
+            relative === "packages/registry" ||
+            relative === "packages/core") &&
           field === "exports"
         )
       ) {
@@ -547,6 +701,8 @@ function validatePackageShells() {
       validateSchemasManifest(manifest);
     } else if (relative === "packages/registry") {
       validateRegistryManifest(manifest);
+    } else if (relative === "packages/core") {
+      validateCoreManifest(manifest);
     }
 
     for (const section of [
@@ -689,6 +845,21 @@ function validateTypeScriptProfiles() {
       ) {
         errors.push(
           `${configPath}: compilerOptions.paths must contain only the schemas capability aliases used by Registry`,
+        );
+      }
+    } else if (relative === "packages/core") {
+      const compilerOptions = tsconfig.compilerOptions ?? {};
+      const paths = compilerOptions.paths ?? {};
+
+      if (
+        Object.keys(paths).length !== Object.keys(expectedCorePaths).length ||
+        Object.entries(expectedCorePaths).some(
+          ([alias, expectedTargets]) =>
+            !arraysEqual(paths[alias], expectedTargets),
+        )
+      ) {
+        errors.push(
+          `${configPath}: compilerOptions.paths must contain only the source alias and the Registry and Schemas capability aliases used by Core`,
         );
       }
     } else if ("compilerOptions" in tsconfig) {
@@ -905,7 +1076,7 @@ function runWorkspaceVerification() {
     console.log("Workspace verification passed.");
     console.log("- 6 private workspaces and TypeScript profiles verified");
     console.log(
-      "- Schemas and Registry exports, builds, dependencies, and aliases verified",
+      "- Schemas, Registry, and Core exports, builds, dependencies, and aliases verified",
     );
     console.log("- Root Biome and remaining shell contracts verified");
     console.log("- 4 block categories verified outside the workspace");

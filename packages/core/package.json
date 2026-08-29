@@ -4,6 +4,38 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "tsc --project tsconfig.build.json && node scripts/verify-dist.mjs",
+    "test": "vitest run",
     "typecheck": "tsc --project tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@auren/registry": "workspace:*",
+    "@auren/schemas": "workspace:*"
+  },
+  "exports": {
+    "./search": {
+      "types": "./dist/search/search.d.ts",
+      "import": "./dist/search/search.js"
+    },
+    "./resolve": {
+      "types": "./dist/resolve/resolve.d.ts",
+      "import": "./dist/resolve/resolve.js"
+    },
+    "./dependencies": {
+      "types": "./dist/dependencies/dependency-plan.d.ts",
+      "import": "./dist/dependencies/dependency-plan.js"
+    },
+    "./load/metadata": {
+      "types": "./dist/load/load-block-metadata.d.ts",
+      "import": "./dist/load/load-block-metadata.js"
+    },
+    "./load/files": {
+      "types": "./dist/load/load-block-files.d.ts",
+      "import": "./dist/load/load-block-files.js"
+    },
+    "./compatibility": {
+      "types": "./dist/compatibility/compatibility.d.ts",
+      "import": "./dist/compatibility/compatibility.js"
+    }
   }
 }

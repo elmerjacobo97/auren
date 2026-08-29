@@ -1,4 +1,13 @@
 {
   "extends": "../../tsconfig.node.json",
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["./src/*"],
+      "@auren/registry": ["../registry/src/index.ts"],
+      "@auren/schemas/catalog": ["../schemas/src/catalog/element-schema.ts"],
+      "@auren/schemas/element": ["../schemas/src/element/structural-schema.ts"],
+      "@auren/schemas/taxonomy": ["../schemas/src/taxonomy/schema.ts"]
+    }
+  },
   "include": ["src/**/*.ts"]
 }
