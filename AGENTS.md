@@ -1,49 +1,60 @@
-# Auren Agent Instructions
+# Project Guidelines
 
-## Current State
+## Overview
 
-- This is a pnpm 11.21.0/Turborepo monorepo requiring Node `>=20.19.0 <26`.
-- `@auren/schemas` defines catalog contracts, `@auren/registry` provides the local in-memory Registry, `@auren/core` holds shared catalog logic (search, resolve, dependencies, loading, compatibility, project detection, configuration), and `@auren/cli` ships the `auren` bin with `--help`, `--version`, `init`, `info`, and `search`. `apps/web` and `packages/mcp` remain private `export {}` shells.
-- `pnpm build` builds Schemas before Registry/Core/CLI; `pnpm dev` has no workspace implementation yet.
-- `blocks/` is versioned catalog source, not a workspace, and now holds real catalog content across `marketing/`, `application-ui/`, `ecommerce/`, and `authentication/`. It follows the block standard in `blocks/README.md`; never add package manifests beneath it.
+- Auren is a pnpm/Turborepo monorepo for a versioned UI component and block catalog consumed by developers and coding agents.
+- The implemented foundation is local: Schemas, an in-memory Registry, Core catalog logic, and the Node CLI. The Web and MCP workspaces are still private `export {}` shells.
+- Treat manifests, source, validators, and tests as authoritative. `docs/stack.md` also describes roadmap technology that is not implemented yet.
 
-## Spec Progress
+## Architecture
 
-- Specs 01–15 in `docs/listado-specs.md` are implemented and archived; the next spec is Spec 16.
-- Keep the checkboxes in `docs/listado-specs.md` synchronized with implementation status, marking a spec only after its OpenSpec change is implemented and archived.
-- Use `openspec/changes/archive/` as the record of completed changes; active OpenSpec work belongs under `openspec/changes/`.
+- `@auren/schemas` is the Zod contract and taxonomy source. It intentionally has no root barrel; use `@auren/schemas/element`, `/taxonomy`, `/catalog`, or `/configuration`.
+- `@auren/registry` provides `LocalRegistry`: validated catalog elements, unique IDs, taxonomy indexes, AND queries, registration-order results, and defensive copies. It is in-memory only and does not read `blocks/` or persist data.
+- `@auren/core` exposes direct capability entrypoints for search, dependency-aware resolution, metadata/file loading, compatibility, project detection, and `auren.json` configuration. It has no root export.
+- `@auren/cli` is the `auren` Node executable. Its local catalog source discovers `blocks/`; current commands are `init`, `info`, `search`, and `add`, plus `--help` and `--version`. `add` plans and safely writes files, resolves Auren/package/shadcn requirements, and uses `--force` for existing targets.
+- Workspace dependency direction is Schemas → Registry → Core → CLI. Cross-workspace consumers use package names, not source-relative imports.
+
+## Tech Stack and Structure
+
+- Node `>=20.19.0 <26`, pnpm `11.21.0`, TypeScript ESM with strict shared settings, Turborepo, and Biome.
+- Vitest covers package code; Node’s built-in test runner covers repository verifiers. React and Tailwind CSS v4 are the block baseline; shadcn/ui is optional and compatibility is explicit.
+- Workspaces are exactly `apps/*` and `packages/*`:
+  - `apps/web` — private typecheck-only application shell.
+  - `packages/schemas` — element, taxonomy, catalog, and configuration contracts.
+  - `packages/registry` — local in-memory Registry.
+  - `packages/core` — shared catalog/project/configuration capabilities.
+  - `packages/cli` — executable CLI with colocated command modules.
+  - `packages/mcp` — private typecheck-only shell.
+- `blocks/` is versioned catalog source, not a workspace. The pinned roots are `marketing`, `application-ui`, `ecommerce`, and `authentication`.
 
 ## Commands
 
 - Install reproducibly: `pnpm install --frozen-lockfile`.
-- Validate pinned topology, manifests, exports, aliases, shared config, and the full `blocks/` tree (structure, id uniqueness, `registry.json` vs `catalogElementSchema`): `pnpm check`.
-- Run repository gates: `pnpm typecheck`, `pnpm test`, `pnpm lint`, `pnpm format`, `pnpm build`.
-- Root `check` and `test` build `@auren/schemas` first; `test` also runs the Node fixture tests for the blocks and workspace verifiers (`node --test scripts/verify-blocks.test.mjs scripts/verify-workspace.test.mjs`) before Turbo.
-- Run schemas only: `pnpm --filter @auren/schemas typecheck`, `pnpm --filter @auren/schemas test`, or `pnpm --filter @auren/schemas build`.
-- Run one schemas test: `pnpm --filter @auren/schemas exec vitest run src/<capability>/<file>.test.ts`.
-- Run Registry only: `pnpm --filter @auren/registry typecheck`, `pnpm --filter @auren/registry test`, or `pnpm --filter @auren/registry... build`.
-- Run the Registry contract test: `pnpm --filter @auren/registry exec vitest run src/index.test.ts`.
-- Run Core or CLI gates: `pnpm --filter @auren/core <gate>` / `pnpm --filter @auren/cli <gate>`; both build with `tsc` + `scripts/verify-dist.mjs` and require Schemas (CLI also requires Core) built first.
-- `lint` and `format` are read-only; `lint:fix` and `format:fix` write changes.
-- No CI or pre-commit gate exists; local verification is authoritative.
+- Repository checks: `pnpm check` builds Schemas, verifies workspace contracts, and scans the complete block tree.
+- Full gates: `pnpm typecheck`, `pnpm test`, `pnpm lint`, `pnpm format`, and `pnpm build`. `pnpm build` follows the Turbo dependency graph; `pnpm dev` is the Turborepo entry point but no workspace currently implements `dev`.
+- `pnpm test` also runs `node --test scripts/verify-blocks.test.mjs scripts/verify-workspace.test.mjs` before Turbo package tests.
+- Run a package gate as `pnpm --filter @auren/<package> <gate>` (`typecheck`, `test`, or `build` where that package defines it); a focused Schemas test is `pnpm --filter @auren/schemas exec vitest run src/<capability>/<file>.test.ts`.
+- `lint` and `format` are read-only Biome checks; only `lint:fix` and `format:fix` write. There is currently no CI or pre-commit gate, so local gates are authoritative.
 
-## Architecture
+## Code Conventions
 
-- Before designing or implementing, read `docs/architecture.md`, `docs/stack.md`, and `docs/listado-specs.md`; OpenSpec designs must follow `docs/architecture.md`.
-- `docs/stack.md` mixes implemented foundation with roadmap. Trust manifests, config, and source when they differ.
-- Follow `docs/listado-specs.md` implementation order; each spec is intended to complete independently.
-- Use `docs/modelo-negocio.md` for domain terminology and `packages/schemas/README.md` for schema invariants and taxonomy.
-- Block work is governed by `blocks/README.md` (block standard); OpenSpec block specs live under `openspec/specs/`.
-- Work only from this repository; never import code or assumptions from sibling projects.
+- Organize growing source by domain/capability/feature and keep tests beside implementations. Avoid flat `src/` layouts and premature abstractions.
+- Keep shared compiler defaults in root `tsconfig.base.json`; Node and Web profiles own environment settings. Workspace configs should only declare inputs and verified aliases.
+- Use `@/*` for cross-capability imports inside `packages/schemas` and `packages/core`, relative imports within one capability, and `@auren/<package>` with `workspace:*` across workspaces. Existing workspace ESM TypeScript uses `.js` import specifiers.
+- Keep all workspace packages private ESM packages at `0.0.0`; do not add workspace-local lint/format configuration. Generated `dist/`, Turbo output, and coverage are not source files to edit.
+- Keep the public package boundaries intact: Schemas and Core expose direct capability paths, Registry exposes only `.`, and CLI’s bin is `dist/index.js`.
 
-## Repository Contracts
+## Blocks
 
-- `scripts/verify-workspace.mjs` pins workspace names, directories, scripts, versions, Schemas/Registry/Core exports, the CLI bin and dependencies, aliases, block categories, and TypeScript profiles. Run `pnpm check` after changing any of them.
-- Keep tests beside implementations and organize growing source by domain/capability; avoid flat `src/` layouts and premature abstractions.
-- Avoid re-export-only barrel files. `@auren/schemas` intentionally has no root export; import `@auren/schemas/element`, `/taxonomy`, `/catalog`, or `/configuration`.
-- Inside `packages/schemas`, use `@/*` across capabilities and relative imports within one capability. Cross-workspace imports use `@auren/<package>` with `workspace:*`, never source-relative paths.
-- Registry is in-memory only: persistence, loading `blocks/`, remote Registry output, Collections, and CLI `search`/`add` remain later specs.
-- Blocks live at `blocks/<category>/<type>/<type>-NNN/` (taxonomy ids, zero-padded id) with exactly `component.tsx` + `registry.json` at the root; payload files only under `components/`, `utilities/`, `styles/`, `assets/`.
-- Each `registry.json` must pass the public `catalogElementSchema` unchanged, declare `mobile-first` and `responsive` features, and use an id unique across the whole catalog — `pnpm check` enforces this.
-- Keep TypeScript defaults in root profiles and Biome policy in root `biome.json`; workspace configs should only narrow inputs or declare verified aliases.
-- `dist/`, coverage, and Turbo output are generated and ignored; edit source/config, not generated artifacts.
+- Follow `blocks/README.md` as the detailed block standard. Use `blocks/<category>/<type>/<type>-NNN/` with a zero-padded ID from `001`–`999`; IDs are unique across the whole catalog.
+- A block root contains exactly `component.tsx` and `registry.json`; additional files belong only under `components/`, `utilities/`, `styles/`, or `assets/`. Never add `package.json` beneath `blocks/`.
+- `registry.json` must pass the public `catalogElementSchema`, match its path identity, list every payload file exactly once, omit source `target`/`content`, and include `mobile-first` and `responsive`. Run `pnpm check` after block or manifest changes.
+- Use only the supported React baseline imports unless a matching dependency descriptor exists. Auren dependencies use `kind: "auren"`; shadcn requirements use `kind: "shadcn"` and canonical `@/components/ui/<name>` imports. Do not copy shadcn source into a block or use custom registry paths.
+- Block quality claims remain author/review obligations: design for 320px first and desktop widths, and keep semantic HTML, keyboard/focus behavior, readable themes, and reduced-motion behavior correct when those features are declared.
+
+## OpenSpec and Development Rules
+
+- Before designing or implementing, read `docs/architecture.md`, `docs/stack.md`, `docs/listado-specs.md`, and the relevant domain README (`docs/modelo-negocio.md`, `packages/schemas/README.md`, or `blocks/README.md`).
+- Specs 01–18 are implemented and archived; Spec 19 (Registry Build) is next. Keep `docs/listado-specs.md` checkboxes synchronized, use `openspec/changes/` for active work, and use `openspec/changes/archive/` for completed changes.
+- The current Registry remains local and in-memory. Remote Registry build/publication, Collections, Web catalog, MCP, backend services, and other roadmap capabilities belong to later specs; do not add them opportunistically.
+- Work only from this repository. When changing topology, manifests, exports, aliases, shared config, or block rules, run the relevant verifier and preserve the contracts enforced by `scripts/verify-workspace.mjs` and `scripts/verify-blocks.mjs`.
