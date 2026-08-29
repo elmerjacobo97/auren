@@ -8,10 +8,15 @@ import {
   createPackageInstaller,
   type PackageInstaller,
 } from "./package-installer.js";
+import {
+  createShadcnInstaller,
+  type ShadcnInstaller,
+} from "./shadcn-installer.js";
 
 export interface RegisterAddCommandOptions {
   readonly installableCatalogSource?: InstallableCatalogSource;
   readonly packageInstaller?: PackageInstaller;
+  readonly shadcnInstaller?: ShadcnInstaller;
 }
 
 export function registerAddCommand(
@@ -33,6 +38,7 @@ export function registerAddCommand(
         terminal,
         source: options.installableCatalogSource ?? createLocalCatalogSource(),
         packageInstaller: options.packageInstaller ?? createPackageInstaller(),
+        shadcnInstaller: options.shadcnInstaller ?? createShadcnInstaller(),
       });
 
       if (status !== 0) {

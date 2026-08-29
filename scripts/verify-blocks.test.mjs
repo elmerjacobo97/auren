@@ -55,6 +55,7 @@ async function createBlock(
     omitComponent = false,
     omitRegistry = false,
     registryContents,
+    sourceContents = {},
   } = {},
 ) {
   const blockRoot = path.join(blocksRoot, category, type, id);
@@ -69,11 +70,12 @@ async function createBlock(
     await mkdir(path.dirname(filePath), { recursive: true });
     await writeFile(
       filePath,
-      sourcePath.endsWith(".css")
-        ? ".example-block { color: inherit; }\n"
-        : sourcePath.endsWith(".webp")
-          ? "asset fixture"
-          : componentSource,
+      sourceContents[sourcePath] ??
+        (sourcePath.endsWith(".css")
+          ? ".example-block { color: inherit; }\n"
+          : sourcePath.endsWith(".webp")
+            ? "asset fixture"
+            : componentSource),
     );
   }
 
@@ -298,6 +300,55 @@ test("rejects inconsistent, unsafe, and incomplete file descriptors", async () =
       /hero-003\/registry\.json files\[0\]\.content: source descriptors must omit "content"/,
       /hero-004\/registry\.json files\[1\]\.path: registry\.json is the source manifest/,
       /hero-005\/registry\.json: payload file "utilities\/unused\.ts" is not declared/,
+    );
+  });
+});
+
+test("enforces explicit canonical shadcn requirements without changing dependency-free blocks", async () => {
+  await withFixture(async (blocksRoot) => {
+    await createBlock(blocksRoot, {
+      id: "hero-001",
+      sourceContents: {
+        "component.tsx":
+          'import { Button } from "@/components/ui/button";\nexport { Button };\n',
+      },
+      manifestChanges: {
+        dependencies: [{ kind: "shadcn", name: "button" }],
+      },
+    });
+    await createBlock(blocksRoot, {
+      id: "hero-002",
+      sourceContents: {
+        "component.tsx":
+          'import { Dialog } from "@/components/ui/dialog";\nexport { Dialog };\n',
+      },
+    });
+    await createBlock(blocksRoot, {
+      id: "hero-003",
+      sourceFiles: ["component.tsx", "components/ui/button.tsx"],
+      descriptors: [
+        { path: "component.tsx", kind: "component" },
+        { path: "components/ui/button.tsx", kind: "component" },
+      ],
+      sourceContents: {
+        "component.tsx":
+          'export { default as Button } from "@/components/ui/button";\n',
+      },
+      manifestChanges: {
+        dependencies: [{ kind: "shadcn", name: "button" }],
+      },
+    });
+
+    const result = verifyBlocks({ blocksRoot });
+
+    assertErrors(
+      result,
+      /hero-002\/component\.tsx: shadcn component "dialog" must be declared/,
+      /hero-003\/registry\.json: copied shadcn source is not allowed/,
+    );
+    assert.equal(
+      result.errors.some((error) => error.includes("hero-001")),
+      false,
     );
   });
 });

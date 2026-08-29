@@ -31,27 +31,104 @@ export async function detectShadcn(
     );
   }
 
-  return {
-    detected,
-    configPath: detected ? "components.json" : null,
-    aliases:
-      componentsJson.state === "parsed"
-        ? extractShadcnAliases(componentsJson.value)
-        : {},
-  };
+  if (componentsJson.state !== "parsed") {
+    return {
+      detected,
+      configPath: detected ? "components.json" : null,
+      aliases: {},
+      uiAlias: null,
+      tsx: null,
+    };
+  }
+
+  return parseShadcnConfig(componentsJson.value, diagnostics, detected);
 }
 
-function extractShadcnAliases(
+function parseShadcnConfig(
   value: unknown,
-): Readonly<Record<string, string>> {
-  const aliases = asObject(asObject(value)?.aliases);
-  const result: Record<string, string> = {};
+  diagnostics: ProjectDetectionDiagnostic[],
+  detected: boolean,
+): ShadcnDetection {
+  const config = asObject(value);
+
+  if (config === null) {
+    diagnostics.push(
+      diagnostic(
+        "warning",
+        "invalid-shadcn-config",
+        "components.json must contain a JSON object",
+        "components.json",
+      ),
+    );
+
+    return {
+      detected,
+      configPath: "components.json",
+      aliases: {},
+      uiAlias: null,
+      tsx: null,
+    };
+  }
+
+  const rawAliases = config.aliases;
+  const aliases = asObject(rawAliases);
+
+  if (rawAliases !== undefined && aliases === null) {
+    diagnostics.push(
+      diagnostic(
+        "warning",
+        "invalid-shadcn-config",
+        "components.json aliases must be an object",
+        "components.json",
+      ),
+    );
+  }
+
+  const extractedAliases: Record<string, string> = {};
 
   for (const [alias, target] of Object.entries(aliases ?? {})) {
     if (typeof target === "string") {
-      result[alias] = target;
+      extractedAliases[alias] = target;
+    } else {
+      diagnostics.push(
+        diagnostic(
+          "warning",
+          "invalid-shadcn-config",
+          `components.json aliases.${alias} must be a string`,
+          "components.json",
+        ),
+      );
     }
   }
 
-  return result;
+  let uiAlias: string | null = null;
+
+  if (typeof aliases?.ui === "string") {
+    uiAlias = aliases.ui;
+  }
+
+  let tsx: boolean | null = null;
+
+  if (config.tsx !== undefined) {
+    if (typeof config.tsx === "boolean") {
+      tsx = config.tsx;
+    } else {
+      diagnostics.push(
+        diagnostic(
+          "warning",
+          "invalid-shadcn-config",
+          "components.json tsx must be a boolean",
+          "components.json",
+        ),
+      );
+    }
+  }
+
+  return {
+    detected,
+    configPath: "components.json",
+    aliases: extractedAliases,
+    uiAlias,
+    tsx,
+  };
 }

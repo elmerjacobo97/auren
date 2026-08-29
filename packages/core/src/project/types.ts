@@ -12,7 +12,8 @@ export type ProjectDetectionDiagnosticCode =
   | "unsupported-config-extends"
   | "external-config-extends"
   | "config-extends-cycle"
-  | "config-extends-depth-exceeded";
+  | "config-extends-depth-exceeded"
+  | "invalid-shadcn-config";
 
 export type ProjectDetectionDiagnostic = {
   readonly severity: ProjectDetectionDiagnosticSeverity;
@@ -34,6 +35,8 @@ export type ShadcnDetection = {
   readonly detected: boolean;
   readonly configPath: string | null;
   readonly aliases: Readonly<Record<string, string>>;
+  readonly uiAlias: string | null;
+  readonly tsx: boolean | null;
 };
 
 export type SourceLayoutDetection = {

@@ -10,6 +10,7 @@ import {
 import {
   ConflictingPackageVersionsError,
   collectPackageDependencies,
+  collectShadcnDependencies,
   createDependencyPlan,
   resolveProjectDependencies,
 } from "./dependencies/dependency-plan.js";
@@ -75,13 +76,16 @@ describe("Core public capability modules", () => {
       resolveBlock(registry, "hero-001").blocks.map(({ id }) => id),
     ).toEqual(["hero-001"]);
     expect(collectPackageDependencies(registry, "hero-001")).toEqual([]);
+    expect(collectShadcnDependencies(registry, "hero-001")).toEqual([]);
     expect(createDependencyPlan(registry, "hero-001")).toEqual({
       auren: ["hero-001"],
       packages: [],
+      shadcn: [],
     });
     expect(resolveProjectDependencies(registry, "hero-001", {})).toEqual({
       auren: ["hero-001"],
       packages: [],
+      shadcn: [],
       satisfied: [],
       missing: [],
     });

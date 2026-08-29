@@ -84,9 +84,15 @@ const aurenReferenceDependencySchema = z.strictObject({
   id: kebabCaseKeySchema,
 });
 
+export const shadcnDependencySchema = z.strictObject({
+  kind: z.literal("shadcn"),
+  name: kebabCaseKeySchema,
+});
+
 export const aurenDependencySchema = z.discriminatedUnion("kind", [
   packageDependencySchema,
   aurenReferenceDependencySchema,
+  shadcnDependencySchema,
 ]);
 
 export const aurenDependenciesSchema = z
@@ -96,7 +102,11 @@ export const aurenDependenciesSchema = z
 
     for (const [index, dependency] of dependencies.entries()) {
       const identifier =
-        dependency.kind === "package" ? dependency.name : dependency.id;
+        dependency.kind === "package"
+          ? dependency.name
+          : dependency.kind === "auren"
+            ? dependency.id
+            : dependency.name;
       const key = `${dependency.kind}\u0000${identifier}`;
 
       if (seen.has(key)) {
@@ -240,5 +250,6 @@ export const aurenElementSchema = z
 
 export type AurenElement = z.infer<typeof aurenElementSchema>;
 export type AurenDependency = z.infer<typeof aurenDependencySchema>;
+export type ShadcnDependency = z.infer<typeof shadcnDependencySchema>;
 export type AurenFile = z.infer<typeof aurenFileSchema>;
 export type AurenMetadata = z.infer<typeof aurenMetadataSchema>;

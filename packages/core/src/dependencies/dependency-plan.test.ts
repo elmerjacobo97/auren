@@ -4,9 +4,11 @@ import { describe, expect, it } from "vitest";
 import {
   ConflictingPackageVersionsError,
   InvalidPackageRequirementError,
+  InvalidShadcnRequirementError,
   collectPackageDependencies,
   createDependencyPlan,
   resolveProjectDependencies,
+  validateShadcnDependency,
 } from "./dependency-plan";
 
 function createElement(
@@ -118,6 +120,7 @@ describe("dependency planning", () => {
       { name: "motion", version: "^12.0.0" },
       { name: "@acme/ui", version: "^1.0.0" },
     ]);
+    expect(plan.shadcn).toEqual([]);
   });
 
   it("deduplicates shared internal dependencies in deep-first order", () => {
@@ -145,6 +148,39 @@ describe("dependency planning", () => {
     ]);
   });
 
+  it("deduplicates shared shadcn requirements in deep-first order", () => {
+    const registry = new LocalRegistry();
+    const leaf = createElement("leaf-001", {
+      dependencies: [
+        { kind: "shadcn", name: "button" },
+        { kind: "shadcn", name: "dialog" },
+      ],
+    });
+    const branch = createElement("branch-001", {
+      dependencies: [
+        { kind: "auren", id: "leaf-001" },
+        { kind: "shadcn", name: "button" },
+        { kind: "shadcn", name: "alert-dialog" },
+      ],
+    });
+    const root = createElement("root-001", {
+      dependencies: [
+        { kind: "auren", id: "branch-001" },
+        { kind: "shadcn", name: "dialog" },
+      ],
+    });
+    registry.registerMany([leaf, branch, root]);
+
+    const plan = createDependencyPlan(registry, "root-001");
+
+    expect(plan.shadcn).toEqual([
+      { name: "button" },
+      { name: "dialog" },
+      { name: "alert-dialog" },
+    ]);
+    expect(plan.packages).toEqual([]);
+  });
+
   it("reconciles satisfied, missing, and incompatible package ranges", () => {
     const registry = new LocalRegistry();
     registry.register(
@@ -167,6 +203,7 @@ describe("dependency planning", () => {
         { name: "motion", version: "^12.0.0" },
         { name: "lucide-react", version: "^0.468.0" },
       ],
+      shadcn: [],
       satisfied: [{ name: "motion", version: "^12.0.0" }],
       missing: [{ name: "lucide-react", version: "^0.468.0" }],
     });
@@ -184,6 +221,14 @@ describe("dependency planning", () => {
     expect(() => createDependencyPlan(registry, "hero-001")).toThrow(
       InvalidPackageRequirementError,
     );
+  });
+
+  it("rejects unsafe shadcn component requirements before execution", () => {
+    for (const name of ["Button", "button/extra", "--help", "../button"]) {
+      expect(() => validateShadcnDependency({ name })).toThrow(
+        InvalidShadcnRequirementError,
+      );
+    }
   });
 
   it("does not mutate the registry while reconciling project dependencies", () => {

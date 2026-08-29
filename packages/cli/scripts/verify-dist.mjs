@@ -124,6 +124,19 @@ try {
     path.join(consumerRoot, "package.json"),
     "utf8",
   );
+  const componentsConfigPath = path.join(consumerRoot, "components.json");
+
+  try {
+    await readFile(componentsConfigPath, "utf8");
+    throw new Error(
+      "Built CLI fixture unexpectedly started with components.json",
+    );
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("unexpectedly")) {
+      throw error;
+    }
+  }
+
   const add = runCliFrom(consumerRoot, "add", "hero-001");
 
   if (add.status !== 0) {
@@ -132,6 +145,21 @@ try {
 
   if (add.stderr !== "") {
     throw new Error("Built CLI add wrote to stderr");
+  }
+
+  if (add.stdout.includes("shadcn/ui")) {
+    throw new Error(
+      "Built CLI invoked or reported shadcn for a dependency-free block",
+    );
+  }
+
+  try {
+    await readFile(componentsConfigPath, "utf8");
+    throw new Error("Built CLI add unexpectedly created components.json");
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("unexpectedly")) {
+      throw error;
+    }
   }
 
   for (const expected of [

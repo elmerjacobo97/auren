@@ -7,7 +7,7 @@ import {
 import { validateCompatibility } from "@auren/core/compatibility";
 import { resolveProjectDependencies } from "@auren/core/dependencies";
 import { loadBlockFiles, MissingBlockFileError } from "@auren/core/load/files";
-import { detectProject } from "@auren/core/project";
+import { detectProject, type ProjectDetection } from "@auren/core/project";
 import { resolveBlock } from "@auren/core/resolve";
 import { LocalRegistry } from "@auren/registry";
 import type { CatalogElement } from "@auren/schemas/catalog";
@@ -21,6 +21,7 @@ import {
   MissingAurenConfigurationError,
   MissingInstallSourceFileError,
   MissingInstallableRecordError,
+  InvalidShadcnConfigurationError,
   MissingPackageManagerError,
   UnsafeInstallTargetError,
 } from "./add-errors.js";
@@ -29,8 +30,15 @@ import type {
   AddInstallationPlanOptions,
   AddPlannedFile,
 } from "./add-types.js";
+import { resolveShadcnRequirements } from "./shadcn-resolver.js";
+import { rewriteShadcnImports } from "./shadcn-rewriter.js";
 
 const requiredFeatures: readonly Feature[] = ["mobile-first", "responsive"];
+const canonicalShadcnUiAlias = "@/components/ui";
+
+type PlannedShadcnDependency = {
+  readonly name: string;
+};
 
 export async function createAddInstallationPlan({
   projectDir,
@@ -75,6 +83,42 @@ export async function createAddInstallationPlan({
     }
   }
 
+  const dependencyResolution = resolveProjectDependencies(
+    registry,
+    id,
+    detection.dependencies,
+  );
+  const shadcn =
+    "shadcn" in dependencyResolution
+      ? (dependencyResolution.shadcn as readonly PlannedShadcnDependency[])
+      : [];
+  const invalidShadcnDiagnostic = detection.diagnostics.find(
+    ({ code }) => String(code) === "invalid-shadcn-config",
+  );
+  let shadcnResolution = null;
+
+  if (shadcn.length > 0) {
+    if (invalidShadcnDiagnostic !== undefined) {
+      throw new InvalidShadcnConfigurationError(
+        "components.json",
+        invalidShadcnDiagnostic.message,
+      );
+    }
+
+    shadcnResolution = await resolveShadcnRequirements(
+      detection,
+      shadcn.map(({ name }) => name),
+    );
+  }
+
+  const missingRequirements = [
+    ...dependencyResolution.missing.map(
+      ({ name, version }) => `${name}@${version}`,
+    ),
+    ...(shadcnResolution?.missing.map((name) => `shadcn/${name}`) ?? []),
+  ];
+
+  const shadcnUiAlias = getShadcnUiAlias(detection);
   const files: AddPlannedFile[] = [];
   const targets = new Set<string>();
 
@@ -100,7 +144,19 @@ export async function createAddInstallationPlan({
     }
 
     for (const file of resolvedFiles) {
-      validateSourceAliases(file.content, configuration);
+      let content = file.content;
+
+      if (shadcnResolution !== null && shadcnUiAlias !== null) {
+        validateSourceAliases(
+          file.content,
+          configuration,
+          canonicalShadcnUiAlias,
+        );
+        content = rewriteShadcnImports(file.content, shadcnUiAlias);
+        validateSourceAliases(content, configuration, shadcnUiAlias);
+      } else {
+        validateSourceAliases(content, configuration, null);
+      }
       const requestedTarget =
         file.target ??
         [configuration.components, element.id, file.path].join("/");
@@ -110,6 +166,18 @@ export async function createAddInstallationPlan({
         file.target !== undefined,
         configuration,
       );
+
+      if (
+        shadcnResolution !== null &&
+        isWithinDirectory(
+          targetPath.absoluteTargetPath,
+          shadcnResolution.uiDirectory,
+        )
+      ) {
+        throw new UnsafeInstallTargetError(
+          `${requestedTarget} (shadcn UI directory)`,
+        );
+      }
 
       if (targets.has(targetPath.targetPath)) {
         throw new DuplicateInstallTargetError(targetPath.targetPath);
@@ -125,28 +193,15 @@ export async function createAddInstallationPlan({
         blockId: element.id,
         sourcePath: file.path,
         kind: file.kind,
-        content: file.content,
+        content,
         targetPath: targetPath.targetPath,
         absoluteTargetPath: targetPath.absoluteTargetPath,
       });
     }
   }
 
-  const dependencyResolution = resolveProjectDependencies(
-    registry,
-    id,
-    detection.dependencies,
-  );
-
-  if (
-    dependencyResolution.missing.length > 0 &&
-    detection.packageManager === null
-  ) {
-    throw new MissingPackageManagerError(
-      dependencyResolution.missing.map(
-        ({ name, version }) => `${name}@${version}`,
-      ),
-    );
+  if (missingRequirements.length > 0 && detection.packageManager === null) {
+    throw new MissingPackageManagerError(missingRequirements);
   }
 
   return {
@@ -156,7 +211,9 @@ export async function createAddInstallationPlan({
     detection,
     blocks: resolved.blocks,
     packages: dependencyResolution.packages,
+    shadcn,
     dependencyResolution,
+    shadcnResolution,
     files,
     warnings: detection.diagnostics.map(({ message }) => message),
     force,
@@ -325,9 +382,13 @@ async function validateExistingTarget(
 function validateSourceAliases(
   content: string,
   configuration: AurenConfiguration,
+  shadcnUiAlias: string | null,
 ): void {
   const aliases = configuration.aliases ?? {};
-  const aliasValues = Object.values(aliases);
+  const aliasValues = [
+    ...Object.values(aliases),
+    ...(shadcnUiAlias === null ? [] : [shadcnUiAlias]),
+  ];
   const importPattern =
     /(?:from\s*|import\s*\(\s*|require\s*\(\s*)(["'])([^"']+)\1/g;
   let match = importPattern.exec(content);
@@ -383,6 +444,27 @@ function validateExplicitTargetAlias(
   ) {
     throw new InvalidInstallAliasError(target);
   }
+}
+
+function getShadcnUiAlias(
+  detection: Pick<ProjectDetection, "shadcn">,
+): string | null {
+  const shadcn = detection.shadcn;
+
+  return "uiAlias" in shadcn && typeof shadcn.uiAlias === "string"
+    ? shadcn.uiAlias
+    : null;
+}
+
+function isWithinDirectory(candidate: string, directory: string): boolean {
+  const relative = path.relative(directory, candidate);
+
+  return (
+    relative === "" ||
+    (!path.isAbsolute(relative) &&
+      relative !== ".." &&
+      !relative.startsWith(`..${path.sep}`))
+  );
 }
 
 function isMissingPathError(error: unknown): boolean {

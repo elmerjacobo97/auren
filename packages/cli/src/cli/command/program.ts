@@ -55,6 +55,7 @@ export function createRootProgram(
         ? options.catalogSource
         : undefined),
     packageInstaller: options.packageInstaller,
+    shadcnInstaller: options.shadcnInstaller,
   });
 
   return program;

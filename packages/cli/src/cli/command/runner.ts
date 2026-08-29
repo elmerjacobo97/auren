@@ -12,6 +12,7 @@ import type {
 } from "../catalog/catalog-source.js";
 import type { InitPrompt } from "../commands/init/init-prompt.js";
 import type { PackageInstaller } from "../commands/add/package-installer.js";
+import type { ShadcnInstaller } from "../commands/add/shadcn-installer.js";
 
 const successfulControlFlowCodes = new Set([
   "commander.helpDisplayed",
@@ -29,6 +30,7 @@ export interface RunCliOptions extends TerminalOptions {
   catalogSource?: CatalogSource;
   installableCatalogSource?: InstallableCatalogSource;
   packageInstaller?: PackageInstaller;
+  shadcnInstaller?: ShadcnInstaller;
 }
 
 function isSuccessfulControlFlow(error: unknown): boolean {
@@ -55,6 +57,7 @@ export async function runCli(
       catalogSource: options.catalogSource,
       installableCatalogSource: options.installableCatalogSource,
       packageInstaller: options.packageInstaller,
+      shadcnInstaller: options.shadcnInstaller,
     });
 
     for (const command of [program, ...program.commands]) {

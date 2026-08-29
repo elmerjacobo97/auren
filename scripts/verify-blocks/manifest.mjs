@@ -201,5 +201,235 @@ export function validateBlockManifest({
     }
   }
 
+  validateShadcnContract({
+    blockRoot,
+    blockPath,
+    manifest,
+    actualFiles,
+    descriptorPaths,
+    errors,
+  });
+
   return { errors, idClaims };
+}
+
+function validateShadcnContract({
+  blockRoot,
+  blockPath,
+  manifest,
+  actualFiles,
+  descriptorPaths,
+  errors,
+}) {
+  const shadcnDependencies = Array.isArray(manifest.dependencies)
+    ? manifest.dependencies.filter(
+        (dependency) =>
+          isPlainRecord(dependency) && dependency.kind === "shadcn",
+      )
+    : [];
+  const declaredNames = new Set(
+    shadcnDependencies
+      .filter((dependency) => typeof dependency.name === "string")
+      .map((dependency) => dependency.name),
+  );
+  const importedNames = new Set();
+
+  for (const relativePath of actualFiles.keys()) {
+    if (!/\.(?:tsx|ts)$/.test(relativePath)) {
+      continue;
+    }
+
+    let source;
+
+    try {
+      source = readFileSync(
+        path.join(blockRoot, ...relativePath.split("/")),
+        "utf8",
+      );
+    } catch {
+      continue;
+    }
+
+    for (const specifier of findModuleSpecifiers(source)) {
+      if (specifier.startsWith("@/components/ui/")) {
+        const match = /^@\/components\/ui\/([a-z0-9]+(?:-[a-z0-9]+)*)$/.exec(
+          specifier,
+        );
+
+        if (!match) {
+          errors.push(
+            `${blockPath}/${relativePath}: shadcn imports must use the canonical @/components/ui/<name> module path, got ${JSON.stringify(specifier)}`,
+          );
+          continue;
+        }
+
+        const name = match[1];
+        importedNames.add(name);
+
+        if (!declaredNames.has(name)) {
+          errors.push(
+            `${blockPath}/${relativePath}: shadcn component ${JSON.stringify(name)} must be declared with a matching shadcn dependency`,
+          );
+        }
+      } else if (specifier.startsWith("@/registry/")) {
+        errors.push(
+          `${blockPath}/${relativePath}: custom shadcn registry imports are not portable: ${JSON.stringify(specifier)}`,
+        );
+      }
+    }
+  }
+
+  for (const relativePath of descriptorPaths) {
+    if (
+      relativePath === "components/ui" ||
+      relativePath.startsWith("components/ui/")
+    ) {
+      errors.push(
+        `${blockPath}/registry.json: copied shadcn source is not allowed at ${JSON.stringify(relativePath)}; declare a shadcn dependency instead`,
+      );
+    }
+  }
+
+  for (const name of declaredNames) {
+    if (!importedNames.has(name)) {
+      errors.push(
+        `${blockPath}/registry.json: shadcn dependency ${JSON.stringify(name)} is not used by a canonical @/components/ui/${name} import`,
+      );
+    }
+  }
+}
+
+function findModuleSpecifiers(source) {
+  const specifiers = [];
+
+  for (let index = 0; index < source.length; ) {
+    const current = source[index];
+
+    if (current === "/" && source[index + 1] === "/") {
+      index = skipLineComment(source, index + 2);
+      continue;
+    }
+
+    if (current === "/" && source[index + 1] === "*") {
+      index = skipBlockComment(source, index + 2);
+      continue;
+    }
+
+    if (current === '"' || current === "'" || current === "`") {
+      index = skipString(source, index, current);
+      continue;
+    }
+
+    if (isIdentifierStart(current)) {
+      const start = index;
+      index += 1;
+
+      while (index < source.length && isIdentifierPart(source[index])) {
+        index += 1;
+      }
+
+      const token = source.slice(start, index);
+
+      if (token !== "from" && token !== "import" && token !== "require") {
+        continue;
+      }
+
+      let argumentIndex = skipWhitespace(source, index);
+
+      if (token === "from") {
+        // `from` is the module boundary for import and export declarations.
+      } else if (token === "import") {
+        if (source[argumentIndex] === "(") {
+          argumentIndex = skipWhitespace(source, argumentIndex + 1);
+        } else if (
+          source[argumentIndex] !== '"' &&
+          source[argumentIndex] !== "'"
+        ) {
+          continue;
+        }
+      } else {
+        if (source[argumentIndex] !== "(") {
+          continue;
+        }
+        argumentIndex = skipWhitespace(source, argumentIndex + 1);
+      }
+
+      const quote = source[argumentIndex];
+
+      if (quote !== '"' && quote !== "'") {
+        continue;
+      }
+
+      const result = readString(source, argumentIndex, quote);
+
+      if (result !== null) {
+        specifiers.push(result.value);
+        index = result.end;
+      }
+    } else {
+      index += 1;
+    }
+  }
+
+  return specifiers;
+}
+
+function skipWhitespace(source, index) {
+  while (index < source.length && /\s/.test(source[index])) {
+    index += 1;
+  }
+
+  return index;
+}
+
+function skipLineComment(source, index) {
+  while (index < source.length && source[index] !== "\n") {
+    index += 1;
+  }
+
+  return index;
+}
+
+function skipBlockComment(source, index) {
+  const end = source.indexOf("*/", index);
+  return end === -1 ? source.length : end + 2;
+}
+
+function skipString(source, index, quote) {
+  const result = readString(source, index, quote);
+  return result === null ? source.length : result.end;
+}
+
+function readString(source, index, quote) {
+  let value = "";
+
+  for (let cursor = index + 1; cursor < source.length; cursor += 1) {
+    const current = source[cursor];
+
+    if (current === "\\") {
+      value += current;
+      const escaped = source[cursor + 1];
+      if (escaped !== undefined) {
+        value += escaped;
+        cursor += 1;
+      }
+      continue;
+    }
+
+    if (current === quote) {
+      return { value, end: cursor + 1 };
+    }
+
+    value += current;
+  }
+
+  return null;
+}
+
+function isIdentifierStart(value) {
+  return value !== undefined && /[A-Za-z_$]/.test(value);
+}
+
+function isIdentifierPart(value) {
+  return value !== undefined && /[A-Za-z0-9_$]/.test(value);
 }

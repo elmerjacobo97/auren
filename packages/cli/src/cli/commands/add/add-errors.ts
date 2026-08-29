@@ -38,9 +38,64 @@ export class MissingInstallableRecordError extends Error {
 export class MissingPackageManagerError extends Error {
   constructor(readonly packages: readonly string[]) {
     super(
-      `Cannot install missing packages (${packages.join(", ")}): no unambiguous package manager was detected; declare packageManager in package.json or add a single lockfile`,
+      `Cannot install missing requirements (${packages.join(", ")}): no unambiguous package manager was detected; declare packageManager in package.json or add a single lockfile`,
     );
     this.name = "MissingPackageManagerError";
+  }
+}
+
+export class MissingShadcnConfigurationError extends Error {
+  constructor(readonly components: readonly string[]) {
+    super(
+      `Cannot install shadcn/ui components (${components.join(", ")}): a valid root components.json with aliases.ui is required; initialize shadcn/ui with its official CLI and retry`,
+    );
+    this.name = "MissingShadcnConfigurationError";
+  }
+}
+
+export class InvalidShadcnConfigurationError extends Error {
+  constructor(
+    readonly field: string,
+    readonly reason: string,
+  ) {
+    super(`Invalid shadcn/ui configuration field ${field}: ${reason}`);
+    this.name = "InvalidShadcnConfigurationError";
+  }
+}
+
+export class InvalidShadcnAliasError extends Error {
+  constructor(
+    readonly alias: string,
+    readonly reason: string,
+  ) {
+    super(`Cannot resolve shadcn/ui alias "${alias}": ${reason}`);
+    this.name = "InvalidShadcnAliasError";
+  }
+}
+
+export { InvalidShadcnAliasError as ShadcnAliasResolutionError };
+
+export class ShadcnComponentCollisionError extends Error {
+  constructor(
+    readonly component: string,
+    readonly paths: readonly string[],
+  ) {
+    super(
+      `Shadcn/ui component "${component}" has an ambiguous or unsafe existing path: ${paths.join(", ")}`,
+    );
+    this.name = "ShadcnComponentCollisionError";
+  }
+}
+
+export class ShadcnComponentVerificationError extends Error {
+  constructor(
+    readonly components: readonly string[],
+    readonly uiDirectory: string,
+  ) {
+    super(
+      `Shadcn/ui installation did not create the expected components (${components.join(", ")}) in "${uiDirectory}"`,
+    );
+    this.name = "ShadcnComponentVerificationError";
   }
 }
 

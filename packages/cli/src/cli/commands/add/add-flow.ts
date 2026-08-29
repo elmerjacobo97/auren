@@ -4,10 +4,16 @@ import type {
   PackageInstallationResult,
   PackageInstaller,
 } from "./package-installer.js";
+import {
+  createShadcnInstaller,
+  type ShadcnInstallationResult,
+  type ShadcnInstaller,
+} from "./shadcn-installer.js";
 import { formatAddResult } from "./add-formatter.js";
 import { createAddInstallationPlan } from "./add-planner.js";
 import type { AddInstallationPlan } from "./add-types.js";
 import { applyAddInstallationPlan } from "./add-writer.js";
+import { verifyShadcnRequirements } from "./shadcn-resolver.js";
 
 export interface AddFlowOptions {
   readonly projectDir: string;
@@ -16,6 +22,7 @@ export interface AddFlowOptions {
   readonly terminal: Terminal;
   readonly source: InstallableCatalogSource;
   readonly packageInstaller: PackageInstaller;
+  readonly shadcnInstaller?: ShadcnInstaller;
 }
 
 export async function runAddFlow({
@@ -25,6 +32,7 @@ export async function runAddFlow({
   terminal,
   source,
   packageInstaller,
+  shadcnInstaller = createShadcnInstaller(),
 }: AddFlowOptions): Promise<number> {
   try {
     const plan = await createAddInstallationPlan({
@@ -34,6 +42,7 @@ export async function runAddFlow({
       source,
     });
     let installation: PackageInstallationResult = { packages: [] };
+    let shadcnInstallation: ShadcnInstallationResult = { components: [] };
 
     if (plan.dependencyResolution.missing.length > 0) {
       const packageManager = plan.detection.packageManager;
@@ -49,9 +58,36 @@ export async function runAddFlow({
       });
     }
 
+    if (
+      plan.shadcnResolution !== null &&
+      plan.shadcnResolution.missing.length > 0
+    ) {
+      const packageManager = plan.detection.packageManager;
+
+      if (packageManager === null) {
+        throw new Error("Package manager was not resolved for installation");
+      }
+
+      shadcnInstallation = await shadcnInstaller.install({
+        projectDir: plan.projectDir,
+        packageManager: packageManager.name,
+        components: plan.shadcnResolution.missing,
+      });
+      await verifyShadcnRequirements(
+        plan.detection,
+        plan.shadcnResolution.required,
+      );
+    }
+
     await applyAddInstallationPlan(plan);
     renderWarnings(terminal, plan);
-    terminal.writeOut(formatAddResult(plan, installation.packages));
+    terminal.writeOut(
+      formatAddResult(
+        plan,
+        installation.packages,
+        shadcnInstallation.components,
+      ),
+    );
     return 0;
   } catch (error) {
     terminal.error(error);

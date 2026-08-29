@@ -1,4 +1,5 @@
 import type { LocalRegistry } from "@auren/registry";
+import type { CatalogElement } from "@auren/schemas/catalog";
 import { subset, validRange } from "semver";
 import { resolveBlock } from "../resolve/resolve.js";
 
@@ -7,15 +8,29 @@ export type PackageDependency = {
   version: string;
 };
 
+export type ShadcnDependency = {
+  name: string;
+};
+
 export type DependencyPlan = {
   auren: readonly string[];
   packages: readonly PackageDependency[];
+  shadcn: readonly ShadcnDependency[];
 };
 
 export type ProjectDependencyResolution = DependencyPlan & {
   satisfied: readonly PackageDependency[];
   missing: readonly PackageDependency[];
 };
+
+type CatalogDependency =
+  | {
+      readonly kind: "package";
+      readonly name: string;
+      readonly version: string;
+    }
+  | { readonly kind: "auren"; readonly id: string }
+  | { readonly kind: "shadcn"; readonly name: string };
 
 export class ConflictingPackageVersionsError extends Error {
   constructor(
@@ -42,36 +57,37 @@ export class InvalidPackageRequirementError extends Error {
   }
 }
 
-export { InvalidPackageRequirementError as InvalidPackageDependencyError };
+export class InvalidShadcnRequirementError extends Error {
+  constructor(
+    readonly componentName: string,
+    reason: string,
+  ) {
+    super(
+      `Invalid shadcn/ui component requirement "${componentName}": ${reason}`,
+    );
+    this.name = "InvalidShadcnRequirementError";
+  }
+}
+
+export {
+  InvalidPackageRequirementError as InvalidPackageDependencyError,
+  InvalidShadcnRequirementError as InvalidShadcnDependencyError,
+};
 
 export function collectPackageDependencies(
   registry: LocalRegistry,
   id: string,
 ): readonly PackageDependency[] {
-  const resolved = resolveBlock(registry, id);
-  const packagesByName = new Map<string, string>();
+  return collectDependencyRequirements(resolveBlock(registry, id).blocks)
+    .packages;
+}
 
-  for (const element of resolved.blocks) {
-    for (const dependency of element.dependencies) {
-      if (dependency.kind !== "package") {
-        continue;
-      }
-
-      validatePackageDependency(dependency);
-      const declaredVersion = packagesByName.get(dependency.name);
-
-      if (declaredVersion === undefined) {
-        packagesByName.set(dependency.name, dependency.version);
-      } else if (declaredVersion !== dependency.version) {
-        throw new ConflictingPackageVersionsError(dependency.name, [
-          declaredVersion,
-          dependency.version,
-        ]);
-      }
-    }
-  }
-
-  return Array.from(packagesByName, ([name, version]) => ({ name, version }));
+export function collectShadcnDependencies(
+  registry: LocalRegistry,
+  id: string,
+): readonly ShadcnDependency[] {
+  return collectDependencyRequirements(resolveBlock(registry, id).blocks)
+    .shadcn;
 }
 
 export function createDependencyPlan(
@@ -79,10 +95,52 @@ export function createDependencyPlan(
   id: string,
 ): DependencyPlan {
   const resolved = resolveBlock(registry, id);
+  const requirements = collectDependencyRequirements(resolved.blocks);
 
   return {
     auren: resolved.blocks.map((element) => element.id),
-    packages: collectPackageDependencies(registry, id),
+    packages: requirements.packages,
+    shadcn: requirements.shadcn,
+  };
+}
+
+function collectDependencyRequirements(elements: readonly CatalogElement[]): {
+  readonly packages: readonly PackageDependency[];
+  readonly shadcn: readonly ShadcnDependency[];
+} {
+  const packagesByName = new Map<string, string>();
+  const shadcnByName = new Map<string, ShadcnDependency>();
+
+  for (const element of elements) {
+    for (const dependency of element.dependencies as readonly CatalogDependency[]) {
+      if (dependency.kind === "package") {
+        validatePackageDependency(dependency);
+        const declaredVersion = packagesByName.get(dependency.name);
+
+        if (declaredVersion === undefined) {
+          packagesByName.set(dependency.name, dependency.version);
+        } else if (declaredVersion !== dependency.version) {
+          throw new ConflictingPackageVersionsError(dependency.name, [
+            declaredVersion,
+            dependency.version,
+          ]);
+        }
+        continue;
+      }
+
+      if (dependency.kind === "shadcn") {
+        validateShadcnDependency(dependency);
+        shadcnByName.set(dependency.name, { name: dependency.name });
+      }
+    }
+  }
+
+  return {
+    packages: Array.from(packagesByName, ([name, version]) => ({
+      name,
+      version,
+    })),
+    shadcn: [...shadcnByName.values()],
   };
 }
 
@@ -128,6 +186,15 @@ export function validatePackageDependency(dependency: PackageDependency): void {
   }
 }
 
+export function validateShadcnDependency(dependency: ShadcnDependency): void {
+  if (!shadcnNamePattern.test(dependency.name)) {
+    throw new InvalidShadcnRequirementError(
+      dependency.name,
+      "the component name must use lowercase kebab-case",
+    );
+  }
+}
+
 function coversRange(
   declaredVersion: string | undefined,
   requiredVersion: string,
@@ -147,3 +214,4 @@ function coversRange(
 }
 
 const packageNamePattern = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
+const shadcnNamePattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;

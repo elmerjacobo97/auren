@@ -47,6 +47,41 @@ function createPlan(
   files: readonly AddPlannedFile[],
   force = false,
 ): AddInstallationPlan {
+  const detection = {
+    projectDir,
+    framework: "react" as const,
+    typescript: true,
+    tailwind: {
+      detected: true,
+      declaredRange: "^4.0.0",
+      installedVersion: null,
+      major: 4,
+      configPath: null,
+    },
+    shadcn: {
+      detected: false,
+      configPath: null,
+      aliases: {},
+      uiAlias: null,
+      tsx: null,
+    },
+    source: { hasSrcDirectory: false },
+    aliases: {
+      typescript: { configPath: null, baseUrl: null, paths: {} },
+      shadcn: {},
+    },
+    dependencies: {},
+    packageManager: null,
+    diagnostics: [],
+  };
+  const dependencyResolution = {
+    auren: [],
+    packages: [],
+    shadcn: [],
+    satisfied: [],
+    missing: [],
+  };
+
   return {
     requestedId: "hero-001",
     projectDir,
@@ -55,35 +90,12 @@ function createPlan(
       components: "src/components/auren",
       tailwind: true,
     },
-    detection: {
-      projectDir,
-      framework: "react",
-      typescript: true,
-      tailwind: {
-        detected: true,
-        declaredRange: "^4.0.0",
-        installedVersion: null,
-        major: 4,
-        configPath: null,
-      },
-      shadcn: { detected: false, configPath: null, aliases: {} },
-      source: { hasSrcDirectory: false },
-      aliases: {
-        typescript: { configPath: null, baseUrl: null, paths: {} },
-        shadcn: {},
-      },
-      dependencies: {},
-      packageManager: null,
-      diagnostics: [],
-    },
+    detection,
     blocks: [],
     packages: [],
-    dependencyResolution: {
-      auren: [],
-      packages: [],
-      satisfied: [],
-      missing: [],
-    },
+    dependencyResolution,
+    shadcn: [],
+    shadcnResolution: null,
     files,
     warnings: [],
     force,

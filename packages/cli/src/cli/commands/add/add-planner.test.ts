@@ -13,7 +13,10 @@ import type {
 } from "../../catalog/catalog-source.js";
 import {
   IncompatibleProjectError,
+  InvalidShadcnAliasError,
   MissingAurenConfigurationError,
+  MissingShadcnConfigurationError,
+  ShadcnComponentCollisionError,
   UnsafeInstallTargetError,
   type DuplicateInstallTargetError,
   type IncompatibleCatalogElementError,
@@ -89,6 +92,15 @@ function createElement(
   };
 }
 
+function shadcnDependency(
+  name: string,
+): CatalogElement["dependencies"][number] {
+  return {
+    kind: "shadcn",
+    name,
+  } as unknown as CatalogElement["dependencies"][number];
+}
+
 function createSource(
   records: readonly InstallableCatalogRecord[],
 ): InstallableCatalogSource & {
@@ -123,6 +135,47 @@ async function createCatalogRoot(): Promise<string> {
   const root = await mkdtemp(path.join(tmpdir(), "auren-add-catalog-"));
   fixtureRoots.push(root);
   return root;
+}
+
+async function configureShadcn(
+  project: string,
+  options: {
+    readonly uiAlias?: string;
+    readonly uiDirectory?: string;
+    readonly tsx?: boolean;
+    readonly paths?: Record<string, readonly string[]>;
+  } = {},
+): Promise<string> {
+  const uiAlias = options.uiAlias ?? "@/components/ui";
+  const uiDirectory = options.uiDirectory ?? "src/components/ui";
+  const paths = options.paths ?? { "@/*": ["./src/*"] };
+
+  await writeFile(
+    path.join(project, "components.json"),
+    `${JSON.stringify(
+      {
+        $schema: "https://ui.shadcn.com/schema.json",
+        ...(options.tsx === undefined ? {} : { tsx: options.tsx }),
+        aliases: {
+          components: "@/components",
+          utils: "@/lib/utils",
+          ui: uiAlias,
+        },
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  await writeFile(
+    path.join(project, "tsconfig.json"),
+    `${JSON.stringify(
+      { compilerOptions: { baseUrl: ".", paths } },
+      null,
+      2,
+    )}\n`,
+  );
+  await mkdir(path.join(project, uiDirectory), { recursive: true });
+  return path.join(project, uiDirectory);
 }
 
 afterEach(async () => {
@@ -487,5 +540,243 @@ describe("createAddInstallationPlan", () => {
       }),
     ).rejects.toThrow("--force");
     expect(await readFile(target, "utf8")).toBe("existing\n");
+  });
+
+  it("requires components.json for shadcn-dependent blocks", async () => {
+    const project = await createProject(
+      defaultConfiguration,
+      undefined,
+      "pnpm@11.21.0",
+    );
+    const catalogRoot = await createCatalogRoot();
+    const element = createElement("hero-001", {
+      dependencies: [shadcnDependency("button")],
+    });
+    const source = createSource(createRecords([element], catalogRoot));
+
+    await expect(
+      createAddInstallationPlan({
+        projectDir: project,
+        id: element.id,
+        force: false,
+        source,
+      }),
+    ).rejects.toBeInstanceOf(MissingShadcnConfigurationError);
+  });
+
+  it("resolves the configured UI alias and reuses an existing tsx component", async () => {
+    const project = await createProject(
+      defaultConfiguration,
+      undefined,
+      "pnpm@11.21.0",
+    );
+    const uiDirectory = await configureShadcn(project, { tsx: true });
+    await writeFile(path.join(uiDirectory, "button.tsx"), "custom button\n");
+    const catalogRoot = await createCatalogRoot();
+    const element = createElement("hero-001", {
+      dependencies: [shadcnDependency("button")],
+      files: [
+        {
+          path: "component.tsx",
+          kind: "component",
+          content:
+            'import { Button } from "@/components/ui/button";\nexport { Button };\n',
+        },
+      ],
+    });
+    const source = createSource(createRecords([element], catalogRoot));
+
+    const plan = await createAddInstallationPlan({
+      projectDir: project,
+      id: element.id,
+      force: true,
+      source,
+    });
+
+    expect(plan.shadcnResolution).toMatchObject({
+      required: ["button"],
+      satisfied: ["button"],
+      missing: [],
+      uiDirectory,
+    });
+    expect(plan.shadcnResolution?.paths).toEqual([
+      { name: "button", path: path.join(uiDirectory, "button.tsx") },
+    ]);
+    expect(plan.files[0]?.content).toContain('from "@/components/ui/button"');
+    expect(await readFile(path.join(uiDirectory, "button.tsx"), "utf8")).toBe(
+      "custom button\n",
+    );
+  });
+
+  it("adapts canonical imports to a custom UI alias without touching strings", async () => {
+    const project = await createProject(
+      defaultConfiguration,
+      undefined,
+      "pnpm@11.21.0",
+    );
+    await configureShadcn(project, {
+      uiAlias: "~/ui",
+      uiDirectory: "src/ui",
+      tsx: true,
+      paths: { "~/*": ["./src/*"] },
+    });
+    const catalogRoot = await createCatalogRoot();
+    const element = createElement("hero-001", {
+      dependencies: [shadcnDependency("button")],
+      files: [
+        {
+          path: "component.tsx",
+          kind: "component",
+          content: [
+            'import { Button } from "@/components/ui/button";',
+            'const text = "@/components/ui/button";',
+            '// import("@/components/ui/button")',
+            "export { Button };",
+            "",
+          ].join("\n"),
+        },
+      ],
+    });
+    const source = createSource(createRecords([element], catalogRoot));
+
+    const plan = await createAddInstallationPlan({
+      projectDir: project,
+      id: element.id,
+      force: false,
+      source,
+    });
+
+    expect(plan.files[0]?.content).toContain('from "~/ui/button"');
+    expect(plan.files[0]?.content).toContain('"@/components/ui/button"');
+    expect(plan.files[0]?.content).toContain(
+      '// import("@/components/ui/button")',
+    );
+  });
+
+  it("uses jsx expectations when components.json sets tsx false", async () => {
+    const project = await createProject(
+      defaultConfiguration,
+      undefined,
+      "pnpm@11.21.0",
+    );
+    const uiDirectory = await configureShadcn(project, { tsx: false });
+    await writeFile(path.join(uiDirectory, "button.jsx"), "button\n");
+    const catalogRoot = await createCatalogRoot();
+    const element = createElement("hero-001", {
+      dependencies: [shadcnDependency("button")],
+    });
+    const source = createSource(createRecords([element], catalogRoot));
+
+    const plan = await createAddInstallationPlan({
+      projectDir: project,
+      id: element.id,
+      force: false,
+      source,
+    });
+
+    expect(plan.shadcnResolution?.satisfied).toEqual(["button"]);
+    expect(plan.shadcnResolution?.paths[0]?.path).toBe(
+      path.join(uiDirectory, "button.jsx"),
+    );
+  });
+
+  it("accepts exactly one format when tsx is absent and rejects both", async () => {
+    const project = await createProject(
+      defaultConfiguration,
+      undefined,
+      "pnpm@11.21.0",
+    );
+    const uiDirectory = await configureShadcn(project);
+    await rm(path.join(project, "components.json"));
+    await writeFile(
+      path.join(project, "components.json"),
+      `${JSON.stringify({ aliases: { ui: "@/components/ui" } }, null, 2)}\n`,
+    );
+    await writeFile(path.join(uiDirectory, "button.jsx"), "button\n");
+    const catalogRoot = await createCatalogRoot();
+    const element = createElement("hero-001", {
+      dependencies: [shadcnDependency("button")],
+    });
+    const source = createSource(createRecords([element], catalogRoot));
+
+    const plan = await createAddInstallationPlan({
+      projectDir: project,
+      id: element.id,
+      force: false,
+      source,
+    });
+    expect(plan.shadcnResolution?.satisfied).toEqual(["button"]);
+
+    await writeFile(path.join(uiDirectory, "button.tsx"), "button\n");
+    await expect(
+      createAddInstallationPlan({
+        projectDir: project,
+        id: element.id,
+        force: false,
+        source,
+      }),
+    ).rejects.toBeInstanceOf(ShadcnComponentCollisionError);
+  });
+
+  it("rejects UI directory targets before any Auren file is planned", async () => {
+    const project = await createProject(
+      defaultConfiguration,
+      undefined,
+      "pnpm@11.21.0",
+    );
+    await configureShadcn(project);
+    const catalogRoot = await createCatalogRoot();
+    const element = createElement("hero-001", {
+      dependencies: [shadcnDependency("button")],
+      files: [
+        {
+          path: "component.tsx",
+          kind: "component",
+          target: "src/components/ui/button.tsx",
+          content: "export {};\n",
+        },
+      ],
+    });
+    const source = createSource(createRecords([element], catalogRoot));
+
+    await expect(
+      createAddInstallationPlan({
+        projectDir: project,
+        id: element.id,
+        force: false,
+        source,
+      }),
+    ).rejects.toBeInstanceOf(UnsafeInstallTargetError);
+    await expect(
+      readFile(path.join(project, "src/components/ui/button.tsx")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("rejects ambiguous TypeScript UI mappings during planning", async () => {
+    const project = await createProject(
+      defaultConfiguration,
+      undefined,
+      "pnpm@11.21.0",
+    );
+    await configureShadcn(project, {
+      paths: {
+        "@/*": ["./src/*"],
+        "@/components/*": ["./src/components/*"],
+      },
+    });
+    const catalogRoot = await createCatalogRoot();
+    const element = createElement("hero-001", {
+      dependencies: [shadcnDependency("button")],
+    });
+    const source = createSource(createRecords([element], catalogRoot));
+
+    await expect(
+      createAddInstallationPlan({
+        projectDir: project,
+        id: element.id,
+        force: false,
+        source,
+      }),
+    ).rejects.toBeInstanceOf(InvalidShadcnAliasError);
   });
 });

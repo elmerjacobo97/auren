@@ -33,9 +33,23 @@ function formatDependencies(element: CatalogElement): string[] {
     ...element.dependencies.map((dependency) =>
       dependency.kind === "package"
         ? `  - package: ${dependency.name}@${dependency.version}`
-        : `  - auren: ${dependency.id}`,
+        : dependency.kind === "auren"
+          ? `  - auren: ${dependency.id}`
+          : formatShadcnDependency(dependency),
     ),
   ];
+}
+
+function formatShadcnDependency(dependency: unknown): string {
+  if (
+    typeof dependency === "object" &&
+    dependency !== null &&
+    "name" in dependency
+  ) {
+    return `  - shadcn: ${String(dependency.name)}`;
+  }
+
+  return "  - shadcn: unknown";
 }
 
 function formatFiles(element: CatalogElement): string[] {

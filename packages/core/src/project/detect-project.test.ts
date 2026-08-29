@@ -65,8 +65,9 @@ describe("detectProject", () => {
         aliases: {
           components: "@/components",
           utils: "@/lib/utils",
-          invalid: false,
+          ui: "@/components/ui",
         },
+        tsx: true,
       });
       await writeFile(path.join(root, "package-lock.json"), "{}");
 
@@ -85,7 +86,13 @@ describe("detectProject", () => {
       expect(detection.shadcn).toEqual({
         detected: true,
         configPath: "components.json",
-        aliases: { components: "@/components", utils: "@/lib/utils" },
+        aliases: {
+          components: "@/components",
+          utils: "@/lib/utils",
+          ui: "@/components/ui",
+        },
+        uiAlias: "@/components/ui",
+        tsx: true,
       });
       expect(detection.aliases).toEqual({
         typescript: {
@@ -93,7 +100,11 @@ describe("detectProject", () => {
           baseUrl: ".",
           paths: { "@/*": ["./src/*"] },
         },
-        shadcn: { components: "@/components", utils: "@/lib/utils" },
+        shadcn: {
+          components: "@/components",
+          utils: "@/lib/utils",
+          ui: "@/components/ui",
+        },
       });
       expect(detection.source.hasSrcDirectory).toBe(true);
       expect(detection.dependencies).toEqual({
@@ -278,6 +289,8 @@ describe("detectProject", () => {
         detected: false,
         configPath: null,
         aliases: {},
+        uiAlias: null,
+        tsx: null,
       });
       expect(detection.source.hasSrcDirectory).toBe(false);
       expect(detection.aliases.typescript).toEqual({
@@ -308,6 +321,8 @@ describe("detectProject", () => {
         detected: true,
         configPath: "components.json",
         aliases: {},
+        uiAlias: null,
+        tsx: null,
       });
       expect(detection.diagnostics).toEqual([
         expect.objectContaining({
@@ -315,6 +330,83 @@ describe("detectProject", () => {
           path: "components.json",
         }),
       ]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("reports missing and invalid shadcn fields without conflating alias sources", async () => {
+    const root = await createFixture();
+
+    try {
+      await writeJson(root, "package.json", {});
+      await writeJson(root, "components.json", {
+        aliases: {
+          components: "@/components",
+          ui: false,
+          invalid: 42,
+        },
+        tsx: "yes",
+      });
+      await writeJson(root, "jsconfig.json", {
+        compilerOptions: {
+          baseUrl: ".",
+          paths: { "@/*": ["./src/*"] },
+        },
+      });
+
+      const detection = await detectProject(root);
+
+      expect(detection.shadcn).toEqual({
+        detected: true,
+        configPath: "components.json",
+        aliases: { components: "@/components" },
+        uiAlias: null,
+        tsx: null,
+      });
+      expect(detection.aliases.typescript).toEqual({
+        configPath: "jsconfig.json",
+        baseUrl: ".",
+        paths: { "@/*": ["./src/*"] },
+      });
+      expect(detection.diagnostics).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            code: "invalid-shadcn-config",
+            path: "components.json",
+            message: expect.stringContaining("aliases.ui"),
+          }),
+          expect.objectContaining({
+            code: "invalid-shadcn-config",
+            path: "components.json",
+            message: expect.stringContaining("tsx"),
+          }),
+        ]),
+      );
+      expect(detection.diagnostics).toHaveLength(3);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("supports a components config with omitted optional shadcn fields", async () => {
+    const root = await createFixture();
+
+    try {
+      await writeJson(root, "package.json", {});
+      await writeJson(root, "components.json", {
+        aliases: { components: "@/components" },
+      });
+
+      await expect(detectProject(root)).resolves.toMatchObject({
+        shadcn: {
+          detected: true,
+          configPath: "components.json",
+          aliases: { components: "@/components" },
+          uiAlias: null,
+          tsx: null,
+        },
+      });
     } finally {
       await rm(root, { recursive: true, force: true });
     }

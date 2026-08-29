@@ -144,9 +144,29 @@ declare exactly one matching `auren` descriptor:
 }
 ```
 
-Package and Auren dependency descriptors belong in the manifest's
-`dependencies` array. The descriptor must describe a real requirement; it is
-not a way to reserve a package or silence an import review.
+A block may require a canonical shadcn/ui source component without copying its
+source into the block:
+
+```json
+{
+  "kind": "shadcn",
+  "name": "button"
+}
+```
+
+Every such requirement must be imported through the canonical module prefix
+`@/components/ui/<name>`. Auren adapts that prefix to the consumer's
+`components.json.aliases.ui` during installation. Do not use a registry URL,
+namespaced/custom registry identifier, arbitrary consumer filesystem path, or
+a block-local `components/ui/` copy. Shadcn descriptors contain only a safe
+lowercase kebab-case component name; they are source requirements, not npm
+packages, and have no version field.
+
+Package, Auren, and shadcn dependency descriptors belong in the manifest's
+`dependencies` array. Each descriptor must describe a real requirement; it is
+not a way to reserve a package or silence an import review. A canonical
+shadcn import without its matching descriptor, or an unused shadcn descriptor,
+is invalid.
 
 A block directory and every descendant must not contain `package.json` or any
 other workspace manifest. Blocks remain outside pnpm workspace globs and are
@@ -200,6 +220,8 @@ topology, and then scans the complete `blocks/` tree. It mechanically enforces:
   catalog-wide id uniqueness.
 - Public `catalogElementSchema` validity and the mandatory `mobile-first` and
   `responsive` features.
+- Explicit canonical shadcn descriptors for shadcn imports, with no copied
+  shadcn source or custom registry identifiers.
 - Safe, complete, one-to-one file inventories and designated file kinds.
 - Asset path grammar, unexpected source entries, and absence of nested package
   manifests.

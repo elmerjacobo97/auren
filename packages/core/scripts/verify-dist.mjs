@@ -8,7 +8,9 @@ import {
 import {
   ConflictingPackageVersionsError,
   InvalidPackageRequirementError,
+  InvalidShadcnRequirementError,
   collectPackageDependencies,
+  collectShadcnDependencies,
   createDependencyPlan,
   resolveProjectDependencies,
 } from "@auren/core/dependencies";
@@ -31,6 +33,7 @@ const errorClasses = [
   [CircularDependencyError, "CircularDependencyError"],
   [ConflictingPackageVersionsError, "ConflictingPackageVersionsError"],
   [InvalidPackageRequirementError, "InvalidPackageRequirementError"],
+  [InvalidShadcnRequirementError, "InvalidShadcnRequirementError"],
   [BlockMetadataError, "BlockMetadataError"],
   [MissingBlockFileError, "MissingBlockFileError"],
   [ProjectDetectionError, "ProjectDetectionError"],
@@ -41,6 +44,7 @@ if (
   typeof searchBlocks !== "function" ||
   typeof resolveBlock !== "function" ||
   typeof collectPackageDependencies !== "function" ||
+  typeof collectShadcnDependencies !== "function" ||
   typeof createDependencyPlan !== "function" ||
   typeof resolveProjectDependencies !== "function" ||
   typeof loadBlockMetadata !== "function" ||

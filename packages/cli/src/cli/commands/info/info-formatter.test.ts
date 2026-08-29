@@ -76,4 +76,18 @@ Metadata:
     expect(output).toContain("Dependencies: none");
     expect(output).toContain("Metadata: none");
   });
+
+  it("renders shadcn component dependencies without package versions", () => {
+    const dependency = {
+      kind: "shadcn",
+      name: "button",
+    } as unknown as CatalogElement["dependencies"][number];
+    const output = formatCatalogElement({
+      ...emptyElement,
+      dependencies: [dependency],
+    });
+
+    expect(output).toContain("Dependencies:\n  - shadcn: button");
+    expect(output).not.toContain("button@");
+  });
 });

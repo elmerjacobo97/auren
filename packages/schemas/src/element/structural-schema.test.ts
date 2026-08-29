@@ -117,7 +117,21 @@ describe("aurenElementSchema", () => {
     expectInvalid(withElementChanges({ frameworks: [] }));
   });
 
-  it("rejects incompatible, duplicate, and self-referencing dependencies", () => {
+  it("accepts strict package, Auren, and shadcn dependencies", () => {
+    const dependencies: AurenDependency[] = [
+      { kind: "package", name: "@acme/ui", version: "^1.2.0" },
+      { kind: "auren", id: "button-001" },
+      { kind: "shadcn", name: "alert-dialog" },
+    ];
+
+    const parsed = aurenElementSchema.parse(
+      withElementChanges({ dependencies }),
+    );
+
+    expect(parsed.dependencies).toEqual(dependencies);
+  });
+
+  it("rejects incompatible, unsafe, duplicate, and self-referencing dependencies", () => {
     expectInvalid(
       withElementChanges({
         dependencies: [{ kind: "package", name: "@acme/ui" }],
@@ -137,9 +151,34 @@ describe("aurenElementSchema", () => {
     );
     expectInvalid(
       withElementChanges({
+        dependencies: [{ kind: "shadcn", name: "button", version: "latest" }],
+      }),
+    );
+    expectInvalid(
+      withElementChanges({
+        dependencies: [{ kind: "shadcn", name: "button", registry: "@acme" }],
+      }),
+    );
+    expectInvalid(
+      withElementChanges({
         dependencies: [{ kind: "unknown", id: "button-001" }],
       }),
     );
+
+    for (const name of [
+      "",
+      "Button",
+      "button/extra",
+      "https://example.com/button",
+      "../button",
+      "button--group",
+      "-button",
+      "button-",
+    ]) {
+      expectInvalid(
+        withElementChanges({ dependencies: [{ kind: "shadcn", name }] }),
+      );
+    }
 
     expectInvalid(
       withElementChanges({
@@ -154,6 +193,14 @@ describe("aurenElementSchema", () => {
         dependencies: [
           { kind: "auren", id: "button-001" },
           { kind: "auren", id: "button-001" },
+        ],
+      }),
+    );
+    expectInvalid(
+      withElementChanges({
+        dependencies: [
+          { kind: "shadcn", name: "button" },
+          { kind: "shadcn", name: "button" },
         ],
       }),
     );
@@ -222,9 +269,8 @@ describe("aurenElementSchema", () => {
       nested: [true, null, { count: 1 }],
     };
     const dependency: AurenDependency = {
-      kind: "package",
-      name: "@acme/ui",
-      version: "^1.2.0",
+      kind: "shadcn",
+      name: "button",
     };
     const file: AurenFile = {
       path: "component.tsx",

@@ -4,6 +4,7 @@ import type { AddInstallationPlan } from "./add-types.js";
 export function formatAddResult(
   plan: AddInstallationPlan,
   installedPackages: readonly PackageDependency[],
+  installedShadcnComponents: readonly string[] = [],
 ): string {
   const lines = [
     `Added ${plan.requestedId}`,
@@ -20,6 +21,22 @@ export function formatAddResult(
     ...(installedPackages.length === 0
       ? ["- none"]
       : installedPackages.map(formatPackage)),
+  );
+
+  if (plan.shadcn.length > 0) {
+    lines.push(
+      "Satisfied shadcn/ui components:",
+      ...(plan.shadcnResolution?.satisfied.length
+        ? plan.shadcnResolution.satisfied.map(formatShadcnComponent)
+        : ["- none"]),
+      "Installed shadcn/ui components:",
+      ...(installedShadcnComponents.length === 0
+        ? ["- none"]
+        : installedShadcnComponents.map(formatShadcnComponent)),
+    );
+  }
+
+  lines.push(
     "Installed files:",
     ...plan.files.map((file) => `- ${file.targetPath}`),
   );
@@ -29,4 +46,8 @@ export function formatAddResult(
 
 function formatPackage({ name, version }: PackageDependency): string {
   return `- ${name}@${version}`;
+}
+
+function formatShadcnComponent(name: string): string {
+  return `- ${name}`;
 }
