@@ -23,6 +23,7 @@
     "src/dependencies/dependency-plan.ts",
     "src/load/load-block-metadata.ts",
     "src/load/load-block-files.ts",
-    "src/compatibility/compatibility.ts"
+    "src/compatibility/compatibility.ts",
+    "src/project/detect-project.ts"
   ]
 }

@@ -16,6 +16,7 @@ import {
 } from "@auren/core/load/metadata";
 import { MissingBlockFileError, loadBlockFiles } from "@auren/core/load/files";
 import { validateCompatibility } from "@auren/core/compatibility";
+import { ProjectDetectionError, detectProject } from "@auren/core/project";
 
 const errorClasses = [
   [UnknownBlockError, "UnknownBlockError"],
@@ -24,6 +25,7 @@ const errorClasses = [
   [ConflictingPackageVersionsError, "ConflictingPackageVersionsError"],
   [BlockMetadataError, "BlockMetadataError"],
   [MissingBlockFileError, "MissingBlockFileError"],
+  [ProjectDetectionError, "ProjectDetectionError"],
 ];
 
 if (
@@ -34,6 +36,7 @@ if (
   typeof loadBlockMetadata !== "function" ||
   typeof loadBlockFiles !== "function" ||
   typeof validateCompatibility !== "function" ||
+  typeof detectProject !== "function" ||
   errorClasses.some(
     ([errorClass, expectedName]) => errorClass.name !== expectedName,
   )

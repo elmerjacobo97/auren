@@ -40,6 +40,7 @@ test("Core TypeScript settings and direct entrypoint files match the contract", 
     "src/load/load-block-metadata.ts",
     "src/load/load-block-files.ts",
     "src/compatibility/compatibility.ts",
+    "src/project/detect-project.ts",
   ]);
   assert.equal(buildConfig.compilerOptions?.declaration, true);
   assert.equal(buildConfig.compilerOptions?.declarationMap, true);

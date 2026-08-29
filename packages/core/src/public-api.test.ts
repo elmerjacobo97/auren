@@ -22,6 +22,10 @@ import {
 } from "./load/load-block-files.js";
 import { searchBlocks } from "./search/search.js";
 import { validateCompatibility } from "./compatibility/compatibility.js";
+import {
+  ProjectDetectionError,
+  detectProject,
+} from "./project/detect-project.js";
 import { LocalRegistry } from "@auren/registry";
 import type { CatalogElement } from "@auren/schemas/catalog";
 import { describe, expect, it } from "vitest";
@@ -102,7 +106,13 @@ describe("Core public capability modules", () => {
 
       const loaded = await loadBlockMetadata(fixtureRoot);
       const files = await loadBlockFiles(fixtureRoot, loaded);
+      const project = await detectProject(fixtureRoot);
 
+      expect(project).toMatchObject({
+        projectDir: fixtureRoot,
+        framework: null,
+        typescript: false,
+      });
       expect(loaded).toEqual(element);
       expect(files).toEqual([
         {
@@ -136,6 +146,7 @@ describe("Core public capability modules", () => {
       captureError(() => collectPackageDependencies(registry, "unknown-001")),
       new BlockMetadataError(metadataRoot, new SyntaxError("bad")),
       new MissingBlockFileError("component.tsx"),
+      new ProjectDetectionError(metadataRoot, new Error("bad")),
     ];
 
     expect(errors[0]).toBeInstanceOf(UnknownBlockError);
@@ -144,6 +155,7 @@ describe("Core public capability modules", () => {
     expect(errors[3]).toBeInstanceOf(UnknownBlockError);
     expect(errors[4]).toBeInstanceOf(BlockMetadataError);
     expect(errors[5]).toBeInstanceOf(MissingBlockFileError);
+    expect(errors[6]).toBeInstanceOf(ProjectDetectionError);
     expect(errors.map((error) => (error as Error).name)).toEqual([
       "UnknownBlockError",
       "MissingAurenDependencyError",
@@ -151,6 +163,7 @@ describe("Core public capability modules", () => {
       "UnknownBlockError",
       "BlockMetadataError",
       "MissingBlockFileError",
+      "ProjectDetectionError",
     ]);
   });
 
@@ -216,8 +229,18 @@ describe("Core public capability modules", () => {
     captureError(() => resolveBlock(registry, "hero-001"));
     captureError(() => createDependencyPlan(registry, "hero-001"));
     captureError(() => resolveBlock(registry, "unknown-001"));
-    await loadBlockMetadata(fixtureRoot).catch(() => undefined);
-    await loadBlockFiles(fixtureRoot, element).catch(() => undefined);
+    try {
+      await loadBlockMetadata(fixtureRoot);
+    } catch {
+      // Expected: this fixture is not valid block metadata.
+    }
+
+    try {
+      await loadBlockFiles(fixtureRoot, element);
+    } catch {
+      // Expected: this fixture is missing block files.
+    }
+
     await rm(fixtureRoot, { recursive: true, force: true });
 
     expect(registry.size).toBe(before.size);

@@ -36,6 +36,10 @@
     "./compatibility": {
       "types": "./dist/compatibility/compatibility.d.ts",
       "import": "./dist/compatibility/compatibility.js"
+    },
+    "./project": {
+      "types": "./dist/project/detect-project.d.ts",
+      "import": "./dist/project/detect-project.js"
     }
   }
 }

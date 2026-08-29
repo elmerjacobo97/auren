@@ -73,6 +73,10 @@ export const expectedCoreExports = {
     import: "./dist/compatibility/compatibility.js",
     types: "./dist/compatibility/compatibility.d.ts",
   },
+  "./project": {
+    import: "./dist/project/detect-project.js",
+    types: "./dist/project/detect-project.d.ts",
+  },
 };
 const expectedRegistryPaths = {
   "@auren/schemas/catalog": ["../schemas/src/catalog/element-schema.ts"],
@@ -116,6 +120,7 @@ const expectedWorkspaceProfiles = {
       "src/load/load-block-metadata.ts",
       "src/load/load-block-files.ts",
       "src/compatibility/compatibility.ts",
+      "src/project/detect-project.ts",
     ],
   },
   "packages/cli": {
@@ -605,10 +610,11 @@ function validateCoreManifest(manifest) {
       "src/load/load-block-metadata.ts",
       "src/load/load-block-files.ts",
       "src/compatibility/compatibility.ts",
+      "src/project/detect-project.ts",
     ])
   ) {
     errors.push(
-      "packages/core/tsconfig.build.json: include must contain only the six Core capability entrypoints",
+      "packages/core/tsconfig.build.json: include must contain only the seven Core capability entrypoints",
     );
   }
 
