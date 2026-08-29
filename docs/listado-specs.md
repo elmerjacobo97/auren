@@ -405,7 +405,7 @@ Objetivo: que un bloque pueda instalarse sin que el usuario tenga que resolver m
 
 ## Spec 18 — shadcn/ui Compatibility
 
-- [ ] Pendiente
+- [x] Implementada y archivada
 
 Añadir compatibilidad explícita con proyectos que utilicen shadcn/ui.
 
