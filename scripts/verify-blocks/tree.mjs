@@ -88,7 +88,14 @@ function scanPayloadDirectory({
   return { errors };
 }
 
-function validateBlockDirectory({ blocksRoot, category, type, id, blockRoot }) {
+function validateBlockDirectory({
+  blocksRoot,
+  category,
+  type,
+  id,
+  blockRoot,
+  inventory,
+}) {
   const errors = [];
   const idClaims = [{ id, location: `${category}/${type}/${id}` }];
   const blockPath = `${category}/${type}/${id}`;
@@ -161,10 +168,24 @@ function validateBlockDirectory({ blocksRoot, category, type, id, blockRoot }) {
   errors.push(...manifestResult.errors);
   idClaims.push(...manifestResult.idClaims);
 
+  inventory?.push({
+    blockRoot,
+    category,
+    type,
+    id,
+    actualFiles: new Map(actualFiles),
+  });
+
   return { errors, idClaims };
 }
 
-function scanTypeDirectory({ blocksRoot, category, type, typeRoot }) {
+function scanTypeDirectory({
+  blocksRoot,
+  category,
+  type,
+  typeRoot,
+  inventory,
+}) {
   const errors = [];
   const idClaims = [];
   const typePath = `${category}/${type}`;
@@ -193,6 +214,7 @@ function scanTypeDirectory({ blocksRoot, category, type, typeRoot }) {
       type,
       id: entry.name,
       blockRoot: entryPath,
+      inventory,
     });
     errors.push(...blockResult.errors);
     idClaims.push(...blockResult.idClaims);
@@ -207,7 +229,12 @@ function scanTypeDirectory({ blocksRoot, category, type, typeRoot }) {
   return { errors, idClaims, blockCount };
 }
 
-function scanCategoryDirectory({ blocksRoot, category, categoryRoot }) {
+function scanCategoryDirectory({
+  blocksRoot,
+  category,
+  categoryRoot,
+  inventory,
+}) {
   const errors = [];
   const idClaims = [];
   let blockCount = 0;
@@ -237,6 +264,7 @@ function scanCategoryDirectory({ blocksRoot, category, categoryRoot }) {
       category,
       type: entry.name,
       typeRoot: entryPath,
+      inventory,
     });
     errors.push(...typeResult.errors);
     idClaims.push(...typeResult.idClaims);
@@ -272,7 +300,11 @@ function scanPackageManifests(directory, blocksRoot) {
   return errors;
 }
 
-export function verifyBlockTree({ blocksRoot, categoryRoots }) {
+export function verifyBlockTree({
+  blocksRoot,
+  categoryRoots,
+  inventory = null,
+}) {
   const resolvedBlocksRoot = path.resolve(blocksRoot);
   const errors = [];
   const idClaims = [];
@@ -350,6 +382,7 @@ export function verifyBlockTree({ blocksRoot, categoryRoots }) {
       blocksRoot: resolvedBlocksRoot,
       category,
       categoryRoot,
+      inventory,
     });
     errors.push(...categoryResult.errors);
     idClaims.push(...categoryResult.idClaims);

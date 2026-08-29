@@ -228,7 +228,9 @@ topology, and then scans the complete `blocks/` tree. It mechanically enforces:
 
 `pnpm test` builds Schemas, runs the temporary-fixture Node verifier tests, and
 then runs the existing package tests. Both commands consume the public package
-entrypoint; neither imports private schema source files.
+entrypoint; neither imports private schema source files. `pnpm registry:build`
+performs the same source preflight and materializes the ignored `dist/registry/`
+catalog for distribution; it never writes inside `blocks/`.
 
 The following remain normative author and review obligations until their
 dedicated automation exists:

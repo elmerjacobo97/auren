@@ -422,7 +422,7 @@ Objetivo: integrarse con shadcn sin convertirlo en una dependencia obligatoria d
 
 ## Spec 19 — Registry Build
 
-- [ ] Pendiente
+- [x] Implementada y completada
 
 Crear el proceso que transforme los bloques fuente en un Registry distribuible.
 

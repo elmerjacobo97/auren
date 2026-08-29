@@ -1,0 +1,313 @@
+import {
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
+import path from "node:path";
+import { RegistryBuildError } from "./errors.mjs";
+import { validateGeneratedArtifacts } from "./catalog.mjs";
+
+export async function inspectExistingOutput(outputRoot, catalogElementSchema) {
+  let stat;
+
+  try {
+    stat = await lstat(outputRoot);
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      return { exists: false, recognized: false };
+    }
+
+    throw new RegistryBuildError(
+      `cannot inspect output root ${displayPath(outputRoot)}`,
+      [error.message],
+    );
+  }
+
+  if (!stat.isDirectory()) {
+    throw new RegistryBuildError(
+      `output root is not a directory: ${displayPath(outputRoot)}`,
+    );
+  }
+
+  const topEntries = await readdir(outputRoot, { withFileTypes: true });
+
+  if (topEntries.length === 0) {
+    return { exists: true, recognized: true, empty: true };
+  }
+
+  const topNames = new Set(topEntries.map((entry) => entry.name));
+
+  if (
+    topNames.size !== 2 ||
+    !topNames.has("registry.json") ||
+    !topNames.has("blocks") ||
+    topEntries.some(
+      (entry) =>
+        (entry.name === "registry.json" && !entry.isFile()) ||
+        (entry.name === "blocks" && !entry.isDirectory()),
+    )
+  ) {
+    throw new RegistryBuildError(
+      `existing output root is not recognizable Registry Build output: ${displayPath(outputRoot)}`,
+      ["expected only registry.json and blocks/"],
+    );
+  }
+
+  const index = await readJson(path.join(outputRoot, "registry.json"));
+
+  if (
+    index?.schemaVersion !== 1 ||
+    !Number.isInteger(index.schemaVersion) ||
+    !Array.isArray(index.blocks)
+  ) {
+    throw new RegistryBuildError(
+      `existing output root has an invalid Registry Build index: ${displayPath(outputRoot)}`,
+    );
+  }
+
+  const detailEntries = await readdir(path.join(outputRoot, "blocks"), {
+    withFileTypes: true,
+  });
+  const details = [];
+
+  for (const entry of detailEntries) {
+    if (!entry.isFile() || !entry.name.endsWith(".json")) {
+      throw new RegistryBuildError(
+        `existing output contains an unexpected detail entry: ${displayPath(path.join(outputRoot, "blocks", entry.name))}`,
+      );
+    }
+
+    const id = entry.name.slice(0, -".json".length);
+    const payload = await readJson(path.join(outputRoot, "blocks", entry.name));
+    details.push({ id, detail: payload });
+  }
+
+  details.sort((left, right) => compareStrings(left.id, right.id));
+  validateGeneratedArtifacts({
+    catalogElementSchema,
+    index,
+    entries: details.map(({ id, detail }) => ({ id, detail })),
+    expectedIds: index.blocks.map((block) => block?.id),
+  });
+
+  return { exists: true, recognized: true, empty: false };
+}
+
+export async function stageAndReplaceOutput({
+  outputRoot,
+  artifacts,
+  catalogElementSchema,
+  existingOutput,
+}) {
+  const parentDirectory = path.dirname(outputRoot);
+  await mkdir(parentDirectory, { recursive: true });
+
+  let stagingRoot;
+
+  try {
+    stagingRoot = await mkdtemp(
+      path.join(parentDirectory, `.${path.basename(outputRoot)}.staging-`),
+    );
+    await writeStagedArtifacts(stagingRoot, artifacts);
+    await validateStagedOutput({
+      stagingRoot,
+      artifacts,
+      catalogElementSchema,
+    });
+    await replaceOutputDirectory({
+      stagingRoot,
+      outputRoot,
+      existingOutput,
+    });
+    stagingRoot = undefined;
+  } finally {
+    if (stagingRoot !== undefined) {
+      await rm(stagingRoot, { recursive: true, force: true });
+    }
+  }
+}
+
+async function writeStagedArtifacts(stagingRoot, artifacts) {
+  const blocksRoot = path.join(stagingRoot, "blocks");
+  await mkdir(blocksRoot);
+  await writeJson(path.join(stagingRoot, "registry.json"), artifacts.index);
+
+  for (const entry of artifacts.entries) {
+    await writeJson(path.join(blocksRoot, `${entry.id}.json`), entry.detail);
+  }
+}
+
+async function validateStagedOutput({
+  stagingRoot,
+  artifacts,
+  catalogElementSchema,
+}) {
+  const topEntries = await readdir(stagingRoot, { withFileTypes: true });
+  const topNames = new Set(topEntries.map((entry) => entry.name));
+
+  if (
+    topNames.size !== 2 ||
+    !topNames.has("registry.json") ||
+    !topNames.has("blocks") ||
+    topEntries.some(
+      (entry) =>
+        (entry.name === "registry.json" && !entry.isFile()) ||
+        (entry.name === "blocks" && !entry.isDirectory()),
+    )
+  ) {
+    throw new RegistryBuildError(
+      "staged Registry output has an unexpected layout",
+    );
+  }
+
+  const index = await readJson(path.join(stagingRoot, "registry.json"));
+  const detailEntries = await readdir(path.join(stagingRoot, "blocks"), {
+    withFileTypes: true,
+  });
+  const details = [];
+
+  for (const entry of detailEntries) {
+    if (!entry.isFile() || !entry.name.endsWith(".json")) {
+      throw new RegistryBuildError(
+        `staged Registry output contains an unexpected detail entry: ${entry.name}`,
+      );
+    }
+
+    details.push({
+      id: entry.name.slice(0, -".json".length),
+      detail: await readJson(path.join(stagingRoot, "blocks", entry.name)),
+    });
+  }
+
+  details.sort((left, right) => compareStrings(left.id, right.id));
+  validateGeneratedArtifacts({
+    catalogElementSchema,
+    index,
+    entries: details,
+    expectedIds: artifacts.entries.map(({ id }) => id),
+  });
+}
+
+async function replaceOutputDirectory({
+  stagingRoot,
+  outputRoot,
+  existingOutput,
+}) {
+  let backupRoot;
+  let outputMoved = false;
+  let stagingMoved = false;
+
+  try {
+    if (existingOutput.exists) {
+      backupRoot = await createSiblingPlaceholder(outputRoot, "backup");
+      await rename(outputRoot, backupRoot);
+      outputMoved = true;
+    }
+
+    await rename(stagingRoot, outputRoot);
+    stagingMoved = true;
+
+    if (backupRoot !== undefined) {
+      await rm(backupRoot, { recursive: true, force: true });
+      backupRoot = undefined;
+    }
+  } catch (error) {
+    const recoveryErrors = [];
+
+    if (stagingMoved) {
+      try {
+        await rm(outputRoot, { recursive: true, force: true });
+      } catch (recoveryError) {
+        recoveryErrors.push(
+          `could not remove replacement: ${recoveryError.message}`,
+        );
+      }
+    }
+
+    if (outputMoved && backupRoot !== undefined) {
+      try {
+        await rename(backupRoot, outputRoot);
+        backupRoot = undefined;
+      } catch (recoveryError) {
+        recoveryErrors.push(
+          `could not restore previous output: ${recoveryError.message}`,
+        );
+      }
+    }
+
+    if (recoveryErrors.length > 0) {
+      throw new RegistryBuildError(
+        `output replacement failed: ${error.message}`,
+        recoveryErrors,
+        { cause: error },
+      );
+    }
+
+    throw error;
+  } finally {
+    if (backupRoot !== undefined && !outputMoved) {
+      await rm(backupRoot, { recursive: true, force: true });
+    }
+  }
+}
+
+async function createSiblingPlaceholder(outputRoot, label) {
+  const parentDirectory = path.dirname(outputRoot);
+  const prefix = path.join(
+    parentDirectory,
+    `.${path.basename(outputRoot)}.${label}-`,
+  );
+  const placeholder = await mkdtemp(prefix);
+  await rm(placeholder, { recursive: true, force: true });
+  return placeholder;
+}
+
+async function readJson(filePath) {
+  let source;
+
+  try {
+    source = await readFile(filePath, "utf8");
+  } catch (error) {
+    throw new RegistryBuildError(
+      `could not read generated JSON ${displayPath(filePath)}`,
+      [error.message],
+    );
+  }
+
+  try {
+    return JSON.parse(source);
+  } catch (error) {
+    throw new RegistryBuildError(
+      `generated JSON is malformed: ${displayPath(filePath)}`,
+      [error.message],
+    );
+  }
+}
+
+async function writeJson(filePath, value) {
+  await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+function displayPath(filePath) {
+  const relative = path.relative(process.cwd(), filePath);
+  return relative && !relative.startsWith(`..${path.sep}`)
+    ? relative.split(path.sep).join("/")
+    : filePath.split(path.sep).join("/");
+}
+
+function compareStrings(left, right) {
+  if (left < right) {
+    return -1;
+  }
+
+  if (left > right) {
+    return 1;
+  }
+
+  return 0;
+}

@@ -38,17 +38,29 @@ function validateDuplicateIds(idClaims, errors) {
 export function verifyBlocks({
   blocksRoot = defaultBlocksRoot,
   categoryRoots = expectedBlockCategories,
+  includeInventory = false,
 } = {}) {
-  const treeResult = verifyBlockTree({ blocksRoot, categoryRoots });
+  const inventory = includeInventory ? [] : null;
+  const treeResult = verifyBlockTree({
+    blocksRoot,
+    categoryRoots,
+    inventory,
+  });
   const errors = new Set(treeResult.errors);
 
   validateDuplicateIds(treeResult.idClaims, errors);
 
-  return {
+  const result = {
     blockCount: treeResult.blockCount,
     categoryCount: treeResult.categoryCount,
     errors: [...errors].sort(),
   };
+
+  if (includeInventory) {
+    result.blocks = inventory;
+  }
+
+  return result;
 }
 
 function parseArguments(argumentsList) {

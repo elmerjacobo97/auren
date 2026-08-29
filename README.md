@@ -38,6 +38,7 @@ pnpm install --frozen-lockfile
 pnpm check
 pnpm typecheck
 pnpm test
+pnpm registry:build
 pnpm lint
 pnpm format
 pnpm lint:fix
@@ -46,7 +47,7 @@ pnpm build
 pnpm dev
 ```
 
-`pnpm check` validates workspace topology and shared configuration. `pnpm typecheck` runs each shell through Turborepo. `pnpm test` runs package tests through the same graph. `lint` and `format` are read-only Biome checks; only their `:fix` variants write changes. `build` and `dev` remain Turborepo entry points for later implementation specs.
+`pnpm check` validates workspace topology and shared configuration without generating the Registry. `pnpm registry:build` validates the source catalog and writes the distributable `dist/registry/registry.json` plus one detail file per block; it also accepts `-- --blocks-root <path> --output-root <path>` through the executable for isolated builds. `pnpm typecheck` runs each shell through Turborepo. `pnpm test` runs package tests through the same graph. `lint` and `format` are read-only Biome checks; only their `:fix` variants write changes. `build` runs workspace builds and then produces the ignored `dist/registry` artifact; `dev` remains the Turborepo entry point for later implementation specs.
 
 ## Shared Conventions
 

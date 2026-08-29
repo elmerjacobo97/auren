@@ -2,6 +2,7 @@ node_modules/
 .pnpm-store/
 .turbo/
 
+# Workspace and Registry Build output; never catalog source.
 dist/
 build/
 coverage/
