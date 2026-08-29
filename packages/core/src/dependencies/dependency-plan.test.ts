@@ -3,8 +3,10 @@ import { LocalRegistry } from "@auren/registry";
 import { describe, expect, it } from "vitest";
 import {
   ConflictingPackageVersionsError,
+  InvalidPackageRequirementError,
   collectPackageDependencies,
   createDependencyPlan,
+  resolveProjectDependencies,
 } from "./dependency-plan";
 
 function createElement(
@@ -116,5 +118,86 @@ describe("dependency planning", () => {
       { name: "motion", version: "^12.0.0" },
       { name: "@acme/ui", version: "^1.0.0" },
     ]);
+  });
+
+  it("deduplicates shared internal dependencies in deep-first order", () => {
+    const registry = new LocalRegistry();
+    const button = createElement("button-001");
+    const left = createElement("left-001", {
+      dependencies: [{ kind: "auren", id: "button-001" }],
+    });
+    const right = createElement("right-001", {
+      dependencies: [{ kind: "auren", id: "button-001" }],
+    });
+    const root = createElement("root-001", {
+      dependencies: [
+        { kind: "auren", id: "left-001" },
+        { kind: "auren", id: "right-001" },
+      ],
+    });
+    registry.registerMany([button, left, right, root]);
+
+    expect(createDependencyPlan(registry, "root-001").auren).toEqual([
+      "button-001",
+      "left-001",
+      "right-001",
+      "root-001",
+    ]);
+  });
+
+  it("reconciles satisfied, missing, and incompatible package ranges", () => {
+    const registry = new LocalRegistry();
+    registry.register(
+      createElement("hero-001", {
+        dependencies: [
+          packageDependency("motion", "^12.0.0"),
+          packageDependency("lucide-react", "^0.468.0"),
+        ],
+      }),
+    );
+
+    expect(
+      resolveProjectDependencies(registry, "hero-001", {
+        motion: "^12.0.0",
+        "lucide-react": "^0.400.0",
+      }),
+    ).toEqual({
+      auren: ["hero-001"],
+      packages: [
+        { name: "motion", version: "^12.0.0" },
+        { name: "lucide-react", version: "^0.468.0" },
+      ],
+      satisfied: [{ name: "motion", version: "^12.0.0" }],
+      missing: [{ name: "lucide-react", version: "^0.468.0" }],
+    });
+  });
+
+  it.each([
+    ["bad name", packageDependency("-unsafe", "^1.0.0")],
+    ["bad range", packageDependency("motion", "not-semver")],
+  ])("rejects an invalid %s package requirement", (_, dependency) => {
+    const registry = new LocalRegistry();
+    registry.register(
+      createElement("hero-001", { dependencies: [dependency] }),
+    );
+
+    expect(() => createDependencyPlan(registry, "hero-001")).toThrow(
+      InvalidPackageRequirementError,
+    );
+  });
+
+  it("does not mutate the registry while reconciling project dependencies", () => {
+    const registry = new LocalRegistry();
+    registry.register(
+      createElement("hero-001", {
+        dependencies: [packageDependency("motion", "^12.0.0")],
+      }),
+    );
+    const before = { size: registry.size, list: registry.list() };
+
+    resolveProjectDependencies(registry, "hero-001", {});
+
+    expect(registry.size).toBe(before.size);
+    expect(registry.list()).toEqual(before.list);
   });
 });

@@ -69,6 +69,7 @@ export async function detectProject(
       typescript: typescriptAliases,
       shadcn: shadcn.aliases,
     },
+    dependencies,
     packageManager,
     diagnostics,
   };

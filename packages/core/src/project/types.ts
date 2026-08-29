@@ -73,6 +73,7 @@ export type ProjectDetection = {
   readonly shadcn: ShadcnDetection;
   readonly source: SourceLayoutDetection;
   readonly aliases: AliasDetection;
+  readonly dependencies: Readonly<Record<string, string>>;
   readonly packageManager: PackageManagerDetection | null;
   readonly diagnostics: readonly ProjectDetectionDiagnostic[];
 };

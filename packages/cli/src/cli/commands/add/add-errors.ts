@@ -35,6 +35,15 @@ export class MissingInstallableRecordError extends Error {
   }
 }
 
+export class MissingPackageManagerError extends Error {
+  constructor(readonly packages: readonly string[]) {
+    super(
+      `Cannot install missing packages (${packages.join(", ")}): no unambiguous package manager was detected; declare packageManager in package.json or add a single lockfile`,
+    );
+    this.name = "MissingPackageManagerError";
+  }
+}
+
 export class MissingInstallSourceFileError extends Error {
   constructor(readonly sourcePath: string) {
     super(`Block source file not found: "${sourcePath}"`);

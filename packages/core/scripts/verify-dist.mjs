@@ -7,8 +7,10 @@ import {
 } from "@auren/core/resolve";
 import {
   ConflictingPackageVersionsError,
+  InvalidPackageRequirementError,
   collectPackageDependencies,
   createDependencyPlan,
+  resolveProjectDependencies,
 } from "@auren/core/dependencies";
 import {
   BlockMetadataError,
@@ -28,6 +30,7 @@ const errorClasses = [
   [MissingAurenDependencyError, "MissingAurenDependencyError"],
   [CircularDependencyError, "CircularDependencyError"],
   [ConflictingPackageVersionsError, "ConflictingPackageVersionsError"],
+  [InvalidPackageRequirementError, "InvalidPackageRequirementError"],
   [BlockMetadataError, "BlockMetadataError"],
   [MissingBlockFileError, "MissingBlockFileError"],
   [ProjectDetectionError, "ProjectDetectionError"],
@@ -39,6 +42,7 @@ if (
   typeof resolveBlock !== "function" ||
   typeof collectPackageDependencies !== "function" ||
   typeof createDependencyPlan !== "function" ||
+  typeof resolveProjectDependencies !== "function" ||
   typeof loadBlockMetadata !== "function" ||
   typeof loadBlockFiles !== "function" ||
   typeof validateCompatibility !== "function" ||

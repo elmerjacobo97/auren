@@ -1,5 +1,9 @@
 import type { InstallableCatalogSource } from "../../catalog/catalog-source.js";
 import type { Terminal } from "../../terminal/terminal.js";
+import type {
+  PackageInstallationResult,
+  PackageInstaller,
+} from "./package-installer.js";
 import { formatAddResult } from "./add-formatter.js";
 import { createAddInstallationPlan } from "./add-planner.js";
 import type { AddInstallationPlan } from "./add-types.js";
@@ -11,6 +15,7 @@ export interface AddFlowOptions {
   readonly force: boolean;
   readonly terminal: Terminal;
   readonly source: InstallableCatalogSource;
+  readonly packageInstaller: PackageInstaller;
 }
 
 export async function runAddFlow({
@@ -19,6 +24,7 @@ export async function runAddFlow({
   force,
   terminal,
   source,
+  packageInstaller,
 }: AddFlowOptions): Promise<number> {
   try {
     const plan = await createAddInstallationPlan({
@@ -27,9 +33,25 @@ export async function runAddFlow({
       force,
       source,
     });
-    renderWarnings(terminal, plan);
+    let installation: PackageInstallationResult = { packages: [] };
+
+    if (plan.dependencyResolution.missing.length > 0) {
+      const packageManager = plan.detection.packageManager;
+
+      if (packageManager === null) {
+        throw new Error("Package manager was not resolved for installation");
+      }
+
+      installation = await packageInstaller.install({
+        projectDir: plan.projectDir,
+        packageManager: packageManager.name,
+        packages: plan.dependencyResolution.missing,
+      });
+    }
+
     await applyAddInstallationPlan(plan);
-    terminal.writeOut(formatAddResult(plan));
+    renderWarnings(terminal, plan);
+    terminal.writeOut(formatAddResult(plan, installation.packages));
     return 0;
   } catch (error) {
     terminal.error(error);

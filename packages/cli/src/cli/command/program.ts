@@ -54,6 +54,7 @@ export function createRootProgram(
       (isInstallableCatalogSource(options.catalogSource)
         ? options.catalogSource
         : undefined),
+    packageInstaller: options.packageInstaller,
   });
 
   return program;

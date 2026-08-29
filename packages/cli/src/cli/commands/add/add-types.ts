@@ -1,5 +1,8 @@
 import type { AurenConfiguration } from "@auren/core/configuration";
-import type { PackageDependency } from "@auren/core/dependencies";
+import type {
+  PackageDependency,
+  ProjectDependencyResolution,
+} from "@auren/core/dependencies";
 import type { ProjectDetection } from "@auren/core/project";
 import type { InstallableCatalogSource } from "../../catalog/catalog-source.js";
 import type { CatalogElement } from "@auren/schemas/catalog";
@@ -27,6 +30,7 @@ export interface AddInstallationPlan {
   readonly detection: ProjectDetection;
   readonly blocks: readonly CatalogElement[];
   readonly packages: readonly PackageDependency[];
+  readonly dependencyResolution: ProjectDependencyResolution;
   readonly files: readonly AddPlannedFile[];
   readonly warnings: readonly string[];
   readonly force: boolean;

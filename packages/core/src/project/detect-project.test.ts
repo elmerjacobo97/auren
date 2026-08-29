@@ -47,6 +47,8 @@ describe("detectProject", () => {
       await writeJson(root, "package.json", {
         dependencies: { react: "^19.0.0", tailwindcss: "^4.1.0" },
         devDependencies: { typescript: "^5.9.0" },
+        peerDependencies: { "peer-package": "^1.0.0" },
+        optionalDependencies: { "optional-package": "^2.0.0" },
         packageManager: "pnpm@11.21.0",
       });
       await writeJson(root, "node_modules/tailwindcss/package.json", {
@@ -94,6 +96,13 @@ describe("detectProject", () => {
         shadcn: { components: "@/components", utils: "@/lib/utils" },
       });
       expect(detection.source.hasSrcDirectory).toBe(true);
+      expect(detection.dependencies).toEqual({
+        react: "^19.0.0",
+        tailwindcss: "^4.1.0",
+        typescript: "^5.9.0",
+        "peer-package": "^1.0.0",
+        "optional-package": "^2.0.0",
+      });
       expect(detection.packageManager).toEqual({
         name: "pnpm",
         version: "11.21.0",

@@ -11,6 +11,7 @@ import type {
   InstallableCatalogSource,
 } from "../catalog/catalog-source.js";
 import type { InitPrompt } from "../commands/init/init-prompt.js";
+import type { PackageInstaller } from "../commands/add/package-installer.js";
 
 const successfulControlFlowCodes = new Set([
   "commander.helpDisplayed",
@@ -27,6 +28,7 @@ export interface RunCliOptions extends TerminalOptions {
   prompt?: InitPrompt;
   catalogSource?: CatalogSource;
   installableCatalogSource?: InstallableCatalogSource;
+  packageInstaller?: PackageInstaller;
 }
 
 function isSuccessfulControlFlow(error: unknown): boolean {
@@ -52,6 +54,7 @@ export async function runCli(
       prompt: options.prompt,
       catalogSource: options.catalogSource,
       installableCatalogSource: options.installableCatalogSource,
+      packageInstaller: options.packageInstaller,
     });
 
     for (const command of [program, ...program.commands]) {

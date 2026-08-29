@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "@auren/registry": "workspace:*",
-    "@auren/schemas": "workspace:*"
+    "@auren/schemas": "workspace:*",
+    "semver": "7.7.2"
   },
   "exports": {
     "./search": {

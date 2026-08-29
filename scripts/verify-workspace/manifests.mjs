@@ -316,6 +316,7 @@ export function validateCoreManifest(manifest) {
   const expectedDependencies = {
     "@auren/registry": "workspace:*",
     "@auren/schemas": "workspace:*",
+    semver: "7.7.2",
   };
 
   for (const [dependency, version] of Object.entries(expectedDependencies)) {
@@ -332,7 +333,7 @@ export function validateCoreManifest(manifest) {
     )
   ) {
     errors.push(
-      "packages/core/package.json: runtime dependencies must contain only @auren/registry and @auren/schemas at workspace:*",
+      "packages/core/package.json: runtime dependencies must contain only the pinned Core dependencies",
     );
   }
 

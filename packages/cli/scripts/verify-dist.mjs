@@ -136,6 +136,9 @@ try {
 
   for (const expected of [
     "Added hero-001",
+    "Resolved blocks:\n- hero-001",
+    "Satisfied package requirements:\n- none",
+    "Installed package requirements:\n- none",
     "src/components/auren/hero-001/component.tsx",
     "src/components/auren/hero-001/utilities/types.ts",
   ]) {

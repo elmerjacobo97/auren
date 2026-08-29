@@ -39,12 +39,17 @@ async function createProject(
     react: "^19.0.0",
     tailwindcss: "^4.0.0",
   },
+  packageManager?: string,
 ): Promise<string> {
   const root = await mkdtemp(path.join(tmpdir(), "auren-add-planner-"));
   fixtureRoots.push(root);
   await writeFile(
     path.join(root, "package.json"),
-    `${JSON.stringify({ dependencies }, null, 2)}\n`,
+    `${JSON.stringify(
+      { dependencies, ...(packageManager ? { packageManager } : {}) },
+      null,
+      2,
+    )}\n`,
   );
 
   if (configuration !== undefined) {
@@ -184,7 +189,14 @@ describe("createAddInstallationPlan", () => {
   });
 
   it("resolves dependencies deeply first and folds package requirements", async () => {
-    const project = await createProject();
+    const project = await createProject(
+      defaultConfiguration,
+      {
+        react: "^19.0.0",
+        tailwindcss: "^4.0.0",
+      },
+      "pnpm@11.21.0",
+    );
     const catalogRoot = await createCatalogRoot();
     const leaf = createElement("leaf-001", {
       dependencies: [{ kind: "package", name: "motion", version: "^12.0.0" }],

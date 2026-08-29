@@ -4,9 +4,14 @@ import { createLocalCatalogSource } from "../../catalog/local-catalog-source.js"
 import type { InstallableCatalogSource } from "../../catalog/catalog-source.js";
 import type { Terminal } from "../../terminal/terminal.js";
 import { runAddFlow } from "./add-flow.js";
+import {
+  createPackageInstaller,
+  type PackageInstaller,
+} from "./package-installer.js";
 
 export interface RegisterAddCommandOptions {
   readonly installableCatalogSource?: InstallableCatalogSource;
+  readonly packageInstaller?: PackageInstaller;
 }
 
 export function registerAddCommand(
@@ -27,6 +32,7 @@ export function registerAddCommand(
         force: actionOptions.force ?? false,
         terminal,
         source: options.installableCatalogSource ?? createLocalCatalogSource(),
+        packageInstaller: options.packageInstaller ?? createPackageInstaller(),
       });
 
       if (status !== 0) {

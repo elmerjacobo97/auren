@@ -11,6 +11,7 @@ import {
   ConflictingPackageVersionsError,
   collectPackageDependencies,
   createDependencyPlan,
+  resolveProjectDependencies,
 } from "./dependencies/dependency-plan.js";
 import {
   BlockMetadataError,
@@ -77,6 +78,12 @@ describe("Core public capability modules", () => {
     expect(createDependencyPlan(registry, "hero-001")).toEqual({
       auren: ["hero-001"],
       packages: [],
+    });
+    expect(resolveProjectDependencies(registry, "hero-001", {})).toEqual({
+      auren: ["hero-001"],
+      packages: [],
+      satisfied: [],
+      missing: [],
     });
     expect(validateCompatibility(element, { frameworks: ["react"] })).toEqual({
       compatible: true,

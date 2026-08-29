@@ -5,7 +5,7 @@ import {
   type AurenConfiguration,
 } from "@auren/core/configuration";
 import { validateCompatibility } from "@auren/core/compatibility";
-import { createDependencyPlan } from "@auren/core/dependencies";
+import { resolveProjectDependencies } from "@auren/core/dependencies";
 import { loadBlockFiles, MissingBlockFileError } from "@auren/core/load/files";
 import { detectProject } from "@auren/core/project";
 import { resolveBlock } from "@auren/core/resolve";
@@ -21,6 +21,7 @@ import {
   MissingAurenConfigurationError,
   MissingInstallSourceFileError,
   MissingInstallableRecordError,
+  MissingPackageManagerError,
   UnsafeInstallTargetError,
 } from "./add-errors.js";
 import type {
@@ -74,7 +75,6 @@ export async function createAddInstallationPlan({
     }
   }
 
-  const dependencyPlan = createDependencyPlan(registry, id);
   const files: AddPlannedFile[] = [];
   const targets = new Set<string>();
 
@@ -132,13 +132,31 @@ export async function createAddInstallationPlan({
     }
   }
 
+  const dependencyResolution = resolveProjectDependencies(
+    registry,
+    id,
+    detection.dependencies,
+  );
+
+  if (
+    dependencyResolution.missing.length > 0 &&
+    detection.packageManager === null
+  ) {
+    throw new MissingPackageManagerError(
+      dependencyResolution.missing.map(
+        ({ name, version }) => `${name}@${version}`,
+      ),
+    );
+  }
+
   return {
     requestedId: id,
     projectDir: detection.projectDir,
     configuration,
     detection,
     blocks: resolved.blocks,
-    packages: dependencyPlan.packages,
+    packages: dependencyResolution.packages,
+    dependencyResolution,
     files,
     warnings: detection.diagnostics.map(({ message }) => message),
     force,

@@ -27,6 +27,7 @@ test("Core manifest matches the pinned executable-package contract", () => {
   assert.deepEqual(manifest.dependencies, {
     "@auren/registry": "workspace:*",
     "@auren/schemas": "workspace:*",
+    semver: "7.7.2",
   });
   assert.deepEqual(manifest.devDependencies ?? {}, {});
   assert.deepEqual(manifest.scripts, {
