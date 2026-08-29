@@ -78,11 +78,12 @@ describe("Auren root CLI", () => {
 
     expect(noArguments).toEqual(help);
     expect(noArguments.status).toBe(0);
-    expect(program.commands).toHaveLength(3);
+    expect(program.commands).toHaveLength(4);
     expect(program.commands.map((command) => command.name())).toEqual([
       "init",
       "info",
       "search",
+      "add",
     ]);
   });
 

@@ -11,13 +11,24 @@ import {
   registerSearchCommand,
   type RegisterSearchCommandOptions,
 } from "../commands/search/search-command.js";
+import {
+  registerAddCommand,
+  type RegisterAddCommandOptions,
+} from "../commands/add/add-command.js";
+import type {
+  CatalogSource,
+  InstallableCatalogSource,
+} from "../catalog/catalog-source.js";
 import type { Terminal } from "../terminal/terminal.js";
 import { readCliVersion } from "../runtime/version.js";
 
 export interface CreateRootProgramOptions
   extends RegisterInitCommandOptions,
     RegisterInfoCommandOptions,
-    RegisterSearchCommandOptions {}
+    RegisterSearchCommandOptions,
+    RegisterAddCommandOptions {
+  readonly catalogSource?: CatalogSource;
+}
 
 export function createRootProgram(
   terminal: Terminal,
@@ -37,6 +48,23 @@ export function createRootProgram(
   registerInitCommand(program, terminal, options);
   registerInfoCommand(program, terminal, options);
   registerSearchCommand(program, terminal, options);
+  registerAddCommand(program, terminal, {
+    installableCatalogSource:
+      options.installableCatalogSource ??
+      (isInstallableCatalogSource(options.catalogSource)
+        ? options.catalogSource
+        : undefined),
+  });
 
   return program;
+}
+
+function isInstallableCatalogSource(
+  source: CatalogSource | undefined,
+): source is InstallableCatalogSource {
+  return (
+    source !== undefined &&
+    typeof (source as Partial<InstallableCatalogSource>).listInstallable ===
+      "function"
+  );
 }

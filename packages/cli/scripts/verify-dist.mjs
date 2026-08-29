@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -20,8 +22,12 @@ try {
 const entrypoint = path.join(packageRoot, "dist", "index.js");
 
 function runCli(...args) {
+  return runCliFrom(packageRoot, ...args);
+}
+
+function runCliFrom(cwd, ...args) {
   const result = spawnSync(process.execPath, [entrypoint, ...args], {
-    cwd: packageRoot,
+    cwd,
     encoding: "utf8",
   });
 
@@ -92,6 +98,73 @@ for (const expected of [
 
 if (search.stderr !== "") {
   throw new Error("Built CLI search wrote to stderr");
+}
+
+const consumerRoot = await mkdtemp(path.join(tmpdir(), "auren-cli-consumer-"));
+
+try {
+  const consumerPackage = `${JSON.stringify(
+    { dependencies: { react: "^19.0.0", tailwindcss: "^4.0.0" } },
+    null,
+    2,
+  )}\n`;
+  const consumerConfiguration = `${JSON.stringify(
+    {
+      framework: "react",
+      components: "src/components/auren",
+      tailwind: true,
+    },
+    null,
+    2,
+  )}\n`;
+
+  await writeFile(path.join(consumerRoot, "package.json"), consumerPackage);
+  await writeFile(path.join(consumerRoot, "auren.json"), consumerConfiguration);
+  const packageBefore = await readFile(
+    path.join(consumerRoot, "package.json"),
+    "utf8",
+  );
+  const add = runCliFrom(consumerRoot, "add", "hero-001");
+
+  if (add.status !== 0) {
+    throw new Error("Built CLI add did not succeed");
+  }
+
+  if (add.stderr !== "") {
+    throw new Error("Built CLI add wrote to stderr");
+  }
+
+  for (const expected of [
+    "Added hero-001",
+    "src/components/auren/hero-001/component.tsx",
+    "src/components/auren/hero-001/utilities/types.ts",
+  ]) {
+    if (!add.stdout.includes(expected)) {
+      throw new Error(`Built CLI add output did not contain ${expected}`);
+    }
+  }
+
+  for (const relativePath of [
+    "src/components/auren/hero-001/component.tsx",
+    "src/components/auren/hero-001/utilities/types.ts",
+  ]) {
+    const filePath = path.join(consumerRoot, ...relativePath.split("/"));
+
+    try {
+      await readFile(filePath, "utf8");
+    } catch {
+      throw new Error(`Built CLI add did not create ${relativePath}`);
+    }
+  }
+
+  if (
+    (await readFile(path.join(consumerRoot, "package.json"), "utf8")) !==
+    packageBefore
+  ) {
+    throw new Error("Built CLI add modified package.json");
+  }
+} finally {
+  await rm(consumerRoot, { recursive: true, force: true });
 }
 
 const version = runCli("--version");

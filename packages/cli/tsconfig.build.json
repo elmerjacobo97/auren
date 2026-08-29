@@ -8,6 +8,14 @@
       "@auren/core/configuration": [
         "../core/dist/configuration/configuration.d.ts"
       ],
+      "@auren/core/resolve": ["../core/dist/resolve/resolve.d.ts"],
+      "@auren/core/dependencies": [
+        "../core/dist/dependencies/dependency-plan.d.ts"
+      ],
+      "@auren/core/load/files": ["../core/dist/load/load-block-files.d.ts"],
+      "@auren/core/compatibility": [
+        "../core/dist/compatibility/compatibility.d.ts"
+      ],
       "@auren/core/load/metadata": [
         "../core/dist/load/load-block-metadata.d.ts"
       ],

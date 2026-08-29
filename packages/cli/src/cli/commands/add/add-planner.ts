@@ -1,0 +1,376 @@
+import { lstat, realpath } from "node:fs/promises";
+import path from "node:path";
+import {
+  readAurenConfig,
+  type AurenConfiguration,
+} from "@auren/core/configuration";
+import { validateCompatibility } from "@auren/core/compatibility";
+import { createDependencyPlan } from "@auren/core/dependencies";
+import { loadBlockFiles, MissingBlockFileError } from "@auren/core/load/files";
+import { detectProject } from "@auren/core/project";
+import { resolveBlock } from "@auren/core/resolve";
+import { LocalRegistry } from "@auren/registry";
+import type { CatalogElement } from "@auren/schemas/catalog";
+import type { Feature } from "@auren/schemas/taxonomy";
+import {
+  InvalidInstallAliasError,
+  DuplicateInstallTargetError,
+  ExistingInstallTargetError,
+  IncompatibleCatalogElementError,
+  IncompatibleProjectError,
+  MissingAurenConfigurationError,
+  MissingInstallSourceFileError,
+  MissingInstallableRecordError,
+  UnsafeInstallTargetError,
+} from "./add-errors.js";
+import type {
+  AddInstallationPlan,
+  AddInstallationPlanOptions,
+  AddPlannedFile,
+} from "./add-types.js";
+
+const requiredFeatures: readonly Feature[] = ["mobile-first", "responsive"];
+
+export async function createAddInstallationPlan({
+  projectDir,
+  id,
+  force,
+  source,
+}: AddInstallationPlanOptions): Promise<AddInstallationPlan> {
+  const configuration = await readAurenConfig(projectDir);
+
+  if (configuration === null) {
+    throw new MissingAurenConfigurationError();
+  }
+
+  const detection = await detectProject(projectDir);
+  validateProject(configuration, detection.framework, detection.tailwind.major);
+
+  const records = await source.listInstallable();
+  validateRawTargets(records, configuration);
+  const recordsById = new Map(
+    records.map((record) => [record.element.id, record]),
+  );
+  const registry = new LocalRegistry();
+  registry.registerMany(records.map(({ element }) => element));
+
+  const resolved = resolveBlock(registry, id);
+
+  for (const element of resolved.blocks) {
+    const compatibility = validateCompatibility(element, {
+      frameworks: [configuration.framework],
+      features: requiredFeatures,
+    });
+
+    if (!compatibility.compatible) {
+      const missing = [
+        ...compatibility.missing.frameworks,
+        ...compatibility.missing.features,
+      ].join(", ");
+      throw new IncompatibleCatalogElementError(
+        element.id,
+        `missing ${missing}`,
+      );
+    }
+  }
+
+  const dependencyPlan = createDependencyPlan(registry, id);
+  const files: AddPlannedFile[] = [];
+  const targets = new Set<string>();
+
+  for (const element of resolved.blocks) {
+    const record = recordsById.get(element.id);
+
+    if (record === undefined) {
+      throw new MissingInstallableRecordError(element.id);
+    }
+
+    let resolvedFiles: Awaited<ReturnType<typeof loadBlockFiles>>;
+
+    try {
+      resolvedFiles = await loadBlockFiles(record.blockDir, element);
+    } catch (error) {
+      if (error instanceof MissingBlockFileError) {
+        throw new MissingInstallSourceFileError(
+          path.join(record.blockDir, error.missingPath),
+        );
+      }
+
+      throw error;
+    }
+
+    for (const file of resolvedFiles) {
+      validateSourceAliases(file.content, configuration);
+      const requestedTarget =
+        file.target ??
+        [configuration.components, element.id, file.path].join("/");
+      const targetPath = await normalizeTarget(
+        detection.projectDir,
+        requestedTarget,
+        file.target !== undefined,
+        configuration,
+      );
+
+      if (targets.has(targetPath.targetPath)) {
+        throw new DuplicateInstallTargetError(targetPath.targetPath);
+      }
+
+      targets.add(targetPath.targetPath);
+      await validateExistingTarget(
+        targetPath.absoluteTargetPath,
+        targetPath.targetPath,
+        force,
+      );
+      files.push({
+        blockId: element.id,
+        sourcePath: file.path,
+        kind: file.kind,
+        content: file.content,
+        targetPath: targetPath.targetPath,
+        absoluteTargetPath: targetPath.absoluteTargetPath,
+      });
+    }
+  }
+
+  return {
+    requestedId: id,
+    projectDir: detection.projectDir,
+    configuration,
+    detection,
+    blocks: resolved.blocks,
+    packages: dependencyPlan.packages,
+    files,
+    warnings: detection.diagnostics.map(({ message }) => message),
+    force,
+  };
+}
+
+export const planAddInstallation = createAddInstallationPlan;
+
+function validateProject(
+  configuration: AurenConfiguration,
+  detectedFramework: string | null,
+  tailwindMajor: number | null,
+): void {
+  if (detectedFramework !== configuration.framework) {
+    throw new IncompatibleProjectError(
+      `Configured framework "${configuration.framework}" does not match detected framework "${detectedFramework ?? "none"}"`,
+    );
+  }
+
+  if (!configuration.tailwind) {
+    throw new IncompatibleProjectError(
+      "Tailwind CSS is disabled in auren.json; enable it before adding a block",
+    );
+  }
+
+  if (tailwindMajor !== 4) {
+    throw new IncompatibleProjectError(
+      `Tailwind CSS v4 is required; detected major version ${tailwindMajor === null ? "unknown" : String(tailwindMajor)}`,
+    );
+  }
+}
+
+function validateRawTargets(
+  records: readonly { element: CatalogElement }[],
+  configuration: AurenConfiguration,
+): void {
+  for (const record of records) {
+    for (const file of record.element.files) {
+      if (file.target === undefined) {
+        continue;
+      }
+
+      validateTargetSyntax(file.target);
+      validateExplicitTargetAlias(file.target, configuration);
+    }
+  }
+}
+
+function validateTargetSyntax(target: string): void {
+  if (
+    target.length === 0 ||
+    target.includes("\\") ||
+    target.includes("\u0000") ||
+    path.isAbsolute(target) ||
+    /^[A-Za-z]:/.test(target) ||
+    target
+      .split("/")
+      .some(
+        (segment) =>
+          segment.length === 0 || segment === "." || segment === "..",
+      )
+  ) {
+    throw new UnsafeInstallTargetError(target);
+  }
+}
+
+async function normalizeTarget(
+  projectDir: string,
+  requestedTarget: string,
+  explicit: boolean,
+  configuration: AurenConfiguration,
+): Promise<{ targetPath: string; absoluteTargetPath: string }> {
+  validateTargetSyntax(requestedTarget);
+
+  if (explicit) {
+    validateExplicitTargetAlias(requestedTarget, configuration);
+  }
+
+  const absoluteTargetPath = path.resolve(
+    projectDir,
+    ...requestedTarget.split("/"),
+  );
+  const relativeTargetPath = path.relative(projectDir, absoluteTargetPath);
+
+  if (
+    relativeTargetPath === "" ||
+    path.isAbsolute(relativeTargetPath) ||
+    relativeTargetPath === ".." ||
+    relativeTargetPath.startsWith(`..${path.sep}`)
+  ) {
+    throw new UnsafeInstallTargetError(requestedTarget);
+  }
+
+  await validateRealPathBoundary(
+    projectDir,
+    absoluteTargetPath,
+    requestedTarget,
+  );
+
+  return {
+    targetPath: relativeTargetPath.split(path.sep).join("/"),
+    absoluteTargetPath,
+  };
+}
+
+async function validateRealPathBoundary(
+  projectDir: string,
+  targetPath: string,
+  requestedTarget: string,
+): Promise<void> {
+  const projectRealPath = await realpath(projectDir);
+  let candidate = targetPath;
+
+  while (true) {
+    try {
+      const candidateRealPath = await realpath(candidate);
+      const relative = path.relative(projectRealPath, candidateRealPath);
+
+      if (
+        path.isAbsolute(relative) ||
+        relative === ".." ||
+        relative.startsWith(`..${path.sep}`)
+      ) {
+        throw new UnsafeInstallTargetError(requestedTarget);
+      }
+
+      return;
+    } catch (error) {
+      if (!isMissingPathError(error)) {
+        throw error;
+      }
+
+      const parent = path.dirname(candidate);
+
+      if (parent === candidate) {
+        throw new UnsafeInstallTargetError(requestedTarget);
+      }
+
+      candidate = parent;
+    }
+  }
+}
+
+async function validateExistingTarget(
+  absoluteTargetPath: string,
+  targetPath: string,
+  force: boolean,
+): Promise<void> {
+  let entry: Awaited<ReturnType<typeof lstat>>;
+
+  try {
+    entry = await lstat(absoluteTargetPath);
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return;
+    }
+
+    throw error;
+  }
+
+  if (entry.isDirectory() || !force) {
+    throw new ExistingInstallTargetError(targetPath);
+  }
+}
+
+function validateSourceAliases(
+  content: string,
+  configuration: AurenConfiguration,
+): void {
+  const aliases = configuration.aliases ?? {};
+  const aliasValues = Object.values(aliases);
+  const importPattern =
+    /(?:from\s*|import\s*\(\s*|require\s*\(\s*)(["'])([^"']+)\1/g;
+  let match = importPattern.exec(content);
+
+  while (match !== null) {
+    const specifier = match[2];
+
+    if (looksLikeAlias(specifier, aliases, aliasValues)) {
+      const known =
+        aliasValues.some(
+          (alias) => specifier === alias || specifier.startsWith(`${alias}/`),
+        ) ||
+        Object.keys(aliases).some(
+          (alias) => specifier === alias || specifier.startsWith(`${alias}/`),
+        );
+
+      if (!known || specifier.split("/").includes("..")) {
+        throw new InvalidInstallAliasError(specifier);
+      }
+    }
+
+    match = importPattern.exec(content);
+  }
+}
+
+function looksLikeAlias(
+  specifier: string,
+  aliases: Readonly<Record<string, string>>,
+  aliasValues: readonly string[],
+): boolean {
+  return (
+    specifier.startsWith("@/") ||
+    specifier.startsWith("~/") ||
+    aliasValues.some((alias) => specifier.startsWith(alias)) ||
+    Object.keys(aliases).some(
+      (alias) => specifier === alias || specifier.startsWith(`${alias}/`),
+    )
+  );
+}
+
+function validateExplicitTargetAlias(
+  target: string,
+  configuration: AurenConfiguration,
+): void {
+  const aliases = configuration.aliases ?? {};
+
+  if (
+    Object.values(aliases).some(
+      (alias) => target === alias || target.startsWith(`${alias}/`),
+    ) ||
+    target.startsWith("@/") ||
+    target.startsWith("~/")
+  ) {
+    throw new InvalidInstallAliasError(target);
+  }
+}
+
+function isMissingPathError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    "code" in error &&
+    (error as NodeJS.ErrnoException).code === "ENOENT"
+  );
+}

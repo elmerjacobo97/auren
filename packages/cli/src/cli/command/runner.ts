@@ -6,7 +6,10 @@ import {
   type Terminal,
   type TerminalOptions,
 } from "../terminal/terminal.js";
-import type { CatalogSource } from "../catalog/catalog-source.js";
+import type {
+  CatalogSource,
+  InstallableCatalogSource,
+} from "../catalog/catalog-source.js";
 import type { InitPrompt } from "../commands/init/init-prompt.js";
 
 const successfulControlFlowCodes = new Set([
@@ -23,6 +26,7 @@ export interface RunCliOptions extends TerminalOptions {
   createProgram?: CliProgramFactory;
   prompt?: InitPrompt;
   catalogSource?: CatalogSource;
+  installableCatalogSource?: InstallableCatalogSource;
 }
 
 function isSuccessfulControlFlow(error: unknown): boolean {
@@ -47,6 +51,7 @@ export async function runCli(
     const program = (options.createProgram ?? createRootProgram)(terminal, {
       prompt: options.prompt,
       catalogSource: options.catalogSource,
+      installableCatalogSource: options.installableCatalogSource,
     });
 
     for (const command of [program, ...program.commands]) {

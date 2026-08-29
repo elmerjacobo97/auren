@@ -107,6 +107,62 @@ describe("createLocalCatalogSource", () => {
 
     await expect(source.getById("Hero-001")).resolves.toBeUndefined();
     await expect(source.getById(" hero-001 ")).resolves.toBeUndefined();
+    await expect(
+      source.getInstallableById("Hero-001"),
+    ).resolves.toBeUndefined();
+    await expect(
+      source.getInstallableById(" hero-001 "),
+    ).resolves.toBeUndefined();
+  });
+
+  it("associates exact-ID metadata with its physical block directory", async () => {
+    const root = await createFixture();
+    const blockDir = await writeElement(
+      root,
+      "marketing",
+      "hero",
+      "hero-001",
+      validElement,
+    );
+
+    const source = createLocalCatalogSource({ catalogRoot: root });
+
+    await expect(source.getInstallableById("hero-001")).resolves.toEqual({
+      element: validElement,
+      blockDir,
+    });
+  });
+
+  it("lists deterministic installable records and shares them with metadata listing", async () => {
+    const root = await createFixture();
+    const heroDir = await writeElement(
+      root,
+      "marketing",
+      "hero",
+      "hero-001",
+      validElement,
+    );
+    const navbarElement = {
+      ...validElement,
+      id: "navbar-001",
+      category: "application-ui",
+      type: "navbar",
+    } as const;
+    const navbarDir = await writeElement(
+      root,
+      "application-ui",
+      "navbar",
+      "navbar-001",
+      navbarElement,
+    );
+
+    const source = createLocalCatalogSource({ catalogRoot: root });
+
+    await expect(source.listInstallable()).resolves.toEqual([
+      { element: validElement, blockDir: heroDir },
+      { element: navbarElement, blockDir: navbarDir },
+    ]);
+    await expect(source.list()).resolves.toEqual([validElement, navbarElement]);
   });
 
   it("returns undefined for an unknown ID", async () => {

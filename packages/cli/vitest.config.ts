@@ -47,6 +47,32 @@ export default defineConfig({
         replacement: coreConfigurationEntrypoint,
       },
       {
+        find: "@auren/core/resolve",
+        replacement: new URL("../core/src/resolve/resolve.ts", import.meta.url)
+          .pathname,
+      },
+      {
+        find: "@auren/core/dependencies",
+        replacement: new URL(
+          "../core/src/dependencies/dependency-plan.ts",
+          import.meta.url,
+        ).pathname,
+      },
+      {
+        find: "@auren/core/load/files",
+        replacement: new URL(
+          "../core/src/load/load-block-files.ts",
+          import.meta.url,
+        ).pathname,
+      },
+      {
+        find: "@auren/core/compatibility",
+        replacement: new URL(
+          "../core/src/compatibility/compatibility.ts",
+          import.meta.url,
+        ).pathname,
+      },
+      {
         find: "@auren/core/load/metadata",
         replacement: coreMetadataEntrypoint,
       },

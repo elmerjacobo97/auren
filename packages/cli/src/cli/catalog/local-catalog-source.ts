@@ -8,7 +8,8 @@ import {
   CatalogMetadataError,
   CatalogUnavailableError,
   DuplicateCatalogIdError,
-  type CatalogSource,
+  type InstallableCatalogRecord,
+  type InstallableCatalogSource,
 } from "./catalog-source.js";
 
 export interface LocalCatalogSourceOptions {
@@ -17,37 +18,46 @@ export interface LocalCatalogSourceOptions {
 
 export function createLocalCatalogSource(
   options: LocalCatalogSourceOptions = {},
-): CatalogSource {
-  let catalogPromise: Promise<ReadonlyMap<string, CatalogElement>> | undefined;
+): InstallableCatalogSource {
+  let catalogPromise:
+    | Promise<ReadonlyMap<string, InstallableCatalogRecord>>
+    | undefined;
+
+  async function readCatalog(): Promise<
+    ReadonlyMap<string, InstallableCatalogRecord>
+  > {
+    catalogPromise ??= loadCatalog(options.catalogRoot);
+
+    try {
+      return await catalogPromise;
+    } catch (error) {
+      catalogPromise = undefined;
+      throw error;
+    }
+  }
 
   return {
     async getById(id) {
-      catalogPromise ??= loadCatalog(options.catalogRoot);
-
-      try {
-        return (await catalogPromise).get(id);
-      } catch (error) {
-        catalogPromise = undefined;
-        throw error;
-      }
+      return (await readCatalog()).get(id)?.element;
     },
 
     async list() {
-      catalogPromise ??= loadCatalog(options.catalogRoot);
+      return [...(await readCatalog()).values()].map(({ element }) => element);
+    },
 
-      try {
-        return [...(await catalogPromise).values()];
-      } catch (error) {
-        catalogPromise = undefined;
-        throw error;
-      }
+    async getInstallableById(id) {
+      return (await readCatalog()).get(id);
+    },
+
+    async listInstallable() {
+      return [...(await readCatalog()).values()];
     },
   };
 }
 
 async function loadCatalog(
   configuredRoot: string | undefined,
-): Promise<ReadonlyMap<string, CatalogElement>> {
+): Promise<ReadonlyMap<string, InstallableCatalogRecord>> {
   const catalogRoot =
     configuredRoot ?? (await discoverCatalogRoot(path.dirname(modulePath)));
 
@@ -59,7 +69,7 @@ async function loadCatalog(
 
   await listDirectories(catalogRoot, false);
 
-  const elements = new Map<string, CatalogElement>();
+  const records = new Map<string, InstallableCatalogRecord>();
   const blockDirectoriesById = new Map<string, string>();
   const elementDirectories = await discoverElementDirectories(catalogRoot);
 
@@ -78,11 +88,11 @@ async function loadCatalog(
       throw new DuplicateCatalogIdError(element.id, previousDir, blockDir);
     }
 
-    elements.set(element.id, element);
+    records.set(element.id, { element, blockDir });
     blockDirectoriesById.set(element.id, blockDir);
   }
 
-  return elements;
+  return records;
 }
 
 const modulePath = fileURLToPath(import.meta.url);

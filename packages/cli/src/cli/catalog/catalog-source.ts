@@ -5,6 +5,16 @@ export interface CatalogSource {
   list(): Promise<readonly CatalogElement[]>;
 }
 
+export type InstallableCatalogRecord = {
+  readonly element: CatalogElement;
+  readonly blockDir: string;
+};
+
+export interface InstallableCatalogSource extends CatalogSource {
+  getInstallableById(id: string): Promise<InstallableCatalogRecord | undefined>;
+  listInstallable(): Promise<readonly InstallableCatalogRecord[]>;
+}
+
 export class UnknownCatalogElementError extends Error {
   constructor(readonly id: string) {
     super(`Catalog element not found: "${id}"`);
