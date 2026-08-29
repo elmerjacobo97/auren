@@ -2,6 +2,7 @@ import type { CatalogElement } from "@auren/schemas/catalog";
 
 export interface CatalogSource {
   getById(id: string): Promise<CatalogElement | undefined>;
+  list(): Promise<readonly CatalogElement[]>;
 }
 
 export class UnknownCatalogElementError extends Error {

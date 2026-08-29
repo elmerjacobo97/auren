@@ -180,4 +180,102 @@ describe("createLocalCatalogSource", () => {
 
     expect(await snapshotTree(root)).toEqual(before);
   });
+
+  it("lists every catalog element in deterministic order", async () => {
+    const root = await createFixture();
+    await writeElement(root, "marketing", "hero", "hero-001", validElement);
+    const navbarElement = {
+      ...validElement,
+      id: "navbar-001",
+      category: "application-ui",
+      type: "navbar",
+    };
+    await writeElement(
+      root,
+      "application-ui",
+      "navbar",
+      "navbar-001",
+      navbarElement,
+    );
+
+    const source = createLocalCatalogSource({ catalogRoot: root });
+
+    await expect(source.list()).resolves.toEqual([validElement, navbarElement]);
+    await expect(source.list()).resolves.toEqual([validElement, navbarElement]);
+  });
+
+  it("shares the validated catalog between exact-ID lookup and listing", async () => {
+    const root = await createFixture();
+    await writeElement(root, "marketing", "hero", "hero-001", validElement);
+
+    const source = createLocalCatalogSource({ catalogRoot: root });
+
+    await expect(source.getById("hero-001")).resolves.toEqual(validElement);
+    await expect(source.list()).resolves.toEqual([validElement]);
+  });
+
+  it("reports an unavailable catalog root through listing", async () => {
+    const root = path.join(await createFixture(), "missing");
+    const source = createLocalCatalogSource({ catalogRoot: root });
+
+    await expect(source.list()).rejects.toBeInstanceOf(CatalogUnavailableError);
+  });
+
+  it("reports malformed catalog metadata through listing", async () => {
+    const root = await createFixture();
+    const blockDir = await writeElement(root, "marketing", "hero", "hero-001", {
+      ...validElement,
+      category: "future-category",
+    });
+    const source = createLocalCatalogSource({ catalogRoot: root });
+
+    const error = await source.list().catch((cause) => cause);
+
+    expect(error).toBeInstanceOf(CatalogMetadataError);
+    expect(error).toMatchObject({ blockDir });
+  });
+
+  it("rejects duplicate IDs through listing", async () => {
+    const root = await createFixture();
+    const firstDir = await writeElement(
+      root,
+      "marketing",
+      "hero",
+      "hero-001",
+      validElement,
+    );
+    const secondDir = await writeElement(
+      root,
+      "application-ui",
+      "navbar",
+      "navbar-001",
+      {
+        ...validElement,
+        id: "hero-001",
+        category: "application-ui",
+        type: "navbar",
+      },
+    );
+    const source = createLocalCatalogSource({ catalogRoot: root });
+
+    const error = await source.list().catch((cause) => cause);
+
+    expect(error).toBeInstanceOf(DuplicateCatalogIdError);
+    expect(error).toMatchObject({
+      id: "hero-001",
+      firstBlockDir: firstDir,
+      duplicateBlockDir: secondDir,
+    });
+  });
+
+  it("does not modify the catalog while listing it", async () => {
+    const root = await createFixture();
+    await writeElement(root, "marketing", "hero", "hero-001", validElement);
+    const before = await snapshotTree(root);
+    const source = createLocalCatalogSource({ catalogRoot: root });
+
+    await source.list();
+
+    expect(await snapshotTree(root)).toEqual(before);
+  });
 });

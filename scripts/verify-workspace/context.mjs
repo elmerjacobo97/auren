@@ -19,6 +19,7 @@ export const expectedRegistryBuildScript =
   "tsc --project tsconfig.build.json && node scripts/verify-dist.mjs";
 export const expectedCliDependencies = {
   "@auren/core": "workspace:*",
+  "@auren/registry": "workspace:*",
   "@auren/schemas": "workspace:*",
   "@clack/prompts": "1.7.0",
   commander: "14.0.3",
@@ -122,6 +123,8 @@ export const expectedCliPaths = {
   "@auren/core/project": ["../core/src/project/detect-project.ts"],
   "@auren/core/configuration": ["../core/src/configuration/configuration.ts"],
   "@auren/core/load/metadata": ["../core/src/load/load-block-metadata.ts"],
+  "@auren/core/search": ["../core/src/search/search.ts"],
+  "@auren/registry": ["../registry/src/index.ts"],
   "@auren/schemas/catalog": ["../schemas/src/catalog/element-schema.ts"],
   "@auren/schemas/configuration": ["../schemas/src/configuration/schema.ts"],
   "@auren/schemas/taxonomy": ["../schemas/src/taxonomy/schema.ts"],

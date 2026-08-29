@@ -78,10 +78,11 @@ describe("Auren root CLI", () => {
 
     expect(noArguments).toEqual(help);
     expect(noArguments.status).toBe(0);
-    expect(program.commands).toHaveLength(2);
+    expect(program.commands).toHaveLength(3);
     expect(program.commands.map((command) => command.name())).toEqual([
       "init",
       "info",
+      "search",
     ]);
   });
 
@@ -207,7 +208,8 @@ describe("auren info command", () => {
 
   it("shows info help without accessing the catalog", async () => {
     const getById = vi.fn(async () => infoElement);
-    const source: CatalogSource = { getById };
+    const list = vi.fn(async () => [infoElement]);
+    const source: CatalogSource = { getById, list };
 
     const result = await invoke(["info", "--help"], {
       catalogSource: source,
@@ -217,6 +219,7 @@ describe("auren info command", () => {
     expect(result.stdout).toContain("Usage: auren info <id>");
     expect(result.stderr).toBe("");
     expect(getById).not.toHaveBeenCalled();
+    expect(list).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -226,14 +229,16 @@ describe("auren info command", () => {
     "rejects %s info arguments before source access",
     async (_, args) => {
       const getById = vi.fn(async () => infoElement);
+      const list = vi.fn(async () => [infoElement]);
       const result = await invoke(args, {
-        catalogSource: { getById },
+        catalogSource: { getById, list },
       });
 
       expect(result.status).toBe(1);
       expect(result.stdout).toBe("");
       expect(result.stderr).toContain("error:");
       expect(getById).not.toHaveBeenCalled();
+      expect(list).not.toHaveBeenCalled();
     },
   );
 
@@ -243,7 +248,7 @@ describe("auren info command", () => {
     );
 
     const result = await invoke(["info", "hero-001"], {
-      catalogSource: { getById },
+      catalogSource: { getById, list: vi.fn(async () => [infoElement]) },
     });
 
     expect(result).toEqual({
@@ -258,6 +263,7 @@ describe("auren info command", () => {
     const result = await invoke(["info", "missing-001"], {
       catalogSource: {
         getById: vi.fn(async () => undefined),
+        list: vi.fn(async () => []),
       },
     });
 
@@ -293,6 +299,142 @@ describe("auren info command", () => {
       await writeFile(`${blockDir}/registry.json`, "{ invalid");
 
       const result = await invoke(["info", "hero-001"], {
+        catalogSource: createLocalCatalogSource({ catalogRoot: fixtureRoot }),
+      });
+
+      expect(result.status).toBe(1);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain("Invalid catalog metadata");
+      expect(result.stderr).toContain(blockDir);
+      expect(result.stderr).not.toContain("\n    at ");
+    } finally {
+      await rm(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+const searchNavbarElement: CatalogElement = {
+  id: "navbar-001",
+  name: "Glass navigation bar",
+  description: "A glassy responsive navigation bar.",
+  category: "application-ui",
+  type: "navbar",
+  styles: ["glass"],
+  industries: ["fintech"],
+  features: ["responsive"],
+  frameworks: ["react"],
+  dependencies: [],
+  files: [{ path: "component.tsx", kind: "component" }],
+  metadata: {},
+};
+
+describe("auren search command", () => {
+  it("advertises search in root help", async () => {
+    const result = await invoke(["--help"]);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("search");
+    expect(result.stderr).toBe("");
+  });
+
+  it("shows search help without accessing the catalog", async () => {
+    const list = vi.fn(async () => [infoElement]);
+    const source: CatalogSource = {
+      getById: vi.fn(async () => undefined),
+      list,
+    };
+
+    const result = await invoke(["search", "--help"], {
+      catalogSource: source,
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("Usage: auren search [query]");
+    expect(result.stderr).toBe("");
+
+    for (const option of [
+      "--type",
+      "--category",
+      "--style",
+      "--industry",
+      "--feature",
+    ]) {
+      expect(result.stdout).toContain(option);
+    }
+
+    expect(list).not.toHaveBeenCalled();
+  });
+
+  it("rejects extra positional arguments before source access", async () => {
+    const list = vi.fn(async () => [infoElement]);
+
+    const result = await invoke(["search", "hero", "extra"], {
+      catalogSource: { getById: vi.fn(async () => undefined), list },
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("error:");
+    expect(list).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid filter value before catalog access", async () => {
+    const list = vi.fn(async () => [infoElement]);
+
+    const result = await invoke(["search", "--style", "nonexistent"], {
+      catalogSource: { getById: vi.fn(async () => undefined), list },
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("error:");
+    expect(result.stderr).toContain("--style");
+    expect(result.stderr).toContain("nonexistent");
+    expect(list).not.toHaveBeenCalled();
+  });
+
+  it("uses an injected source and writes successful output only to stdout", async () => {
+    const list = vi.fn(async () => [searchNavbarElement, infoElement]);
+
+    const result = await invoke(["search", "hero"], {
+      catalogSource: { getById: vi.fn(async () => undefined), list },
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toContain("1 result");
+    expect(result.stdout).toContain("hero-001");
+    expect(result.stdout).toContain("Product launch hero");
+    expect(list).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports an unavailable local catalog", async () => {
+    const fixtureRoot = await mkdtemp(path.join(tmpdir(), "auren-cli-runner-"));
+
+    try {
+      const result = await invoke(["search", "hero"], {
+        catalogSource: createLocalCatalogSource({
+          catalogRoot: `${fixtureRoot}/missing`,
+        }),
+      });
+
+      expect(result.status).toBe(1);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain("Local catalog is unavailable");
+    } finally {
+      await rm(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("reports invalid local catalog metadata without a stack trace", async () => {
+    const fixtureRoot = await mkdtemp(path.join(tmpdir(), "auren-cli-runner-"));
+    const blockDir = `${fixtureRoot}/marketing/hero/hero-001`;
+
+    try {
+      await mkdir(blockDir, { recursive: true });
+      await writeFile(`${blockDir}/registry.json`, "{ invalid");
+
+      const result = await invoke(["search", "hero"], {
         catalogSource: createLocalCatalogSource({ catalogRoot: fixtureRoot }),
       });
 

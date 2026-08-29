@@ -31,6 +31,17 @@ export function createLocalCatalogSource(
         throw error;
       }
     },
+
+    async list() {
+      catalogPromise ??= loadCatalog(options.catalogRoot);
+
+      try {
+        return [...(await catalogPromise).values()];
+      } catch (error) {
+        catalogPromise = undefined;
+        throw error;
+      }
+    },
   };
 }
 

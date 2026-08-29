@@ -11,6 +11,8 @@
       "@auren/core/load/metadata": [
         "../core/dist/load/load-block-metadata.d.ts"
       ],
+      "@auren/core/search": ["../core/dist/search/search.d.ts"],
+      "@auren/registry": ["../registry/dist/index.d.ts"],
       "@auren/schemas/catalog": ["../schemas/dist/catalog/element-schema.d.ts"],
       "@auren/schemas/configuration": [
         "../schemas/dist/configuration/schema.d.ts"

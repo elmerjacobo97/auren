@@ -47,6 +47,7 @@ describe("runInfoFlow", () => {
     const captured = createCapturedTerminal();
     const source: CatalogSource = {
       getById: vi.fn(async () => element),
+      list: vi.fn(async () => [element]),
     };
 
     const status = await runInfoFlow({
@@ -64,6 +65,7 @@ describe("runInfoFlow", () => {
     const captured = createCapturedTerminal();
     const source: CatalogSource = {
       getById: vi.fn(async () => undefined),
+      list: vi.fn(async () => []),
     };
 
     const status = await runInfoFlow({
@@ -85,6 +87,7 @@ describe("runInfoFlow", () => {
       getById: vi.fn(async () => {
         throw new Error("catalog unavailable\n    at hidden stack");
       }),
+      list: vi.fn(async () => []),
     };
 
     const status = await runInfoFlow({

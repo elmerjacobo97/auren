@@ -12,6 +12,12 @@ const coreMetadataEntrypoint = new URL(
   "../core/src/load/load-block-metadata.ts",
   import.meta.url,
 ).pathname;
+const coreSearchEntrypoint = new URL(
+  "../core/src/search/search.ts",
+  import.meta.url,
+).pathname;
+const registryEntrypoint = new URL("../registry/src/index.ts", import.meta.url)
+  .pathname;
 const schemasCatalogEntrypoint = new URL(
   "../schemas/src/catalog/element-schema.ts",
   import.meta.url,
@@ -43,6 +49,14 @@ export default defineConfig({
       {
         find: "@auren/core/load/metadata",
         replacement: coreMetadataEntrypoint,
+      },
+      {
+        find: "@auren/core/search",
+        replacement: coreSearchEntrypoint,
+      },
+      {
+        find: "@auren/registry",
+        replacement: registryEntrypoint,
       },
       {
         find: "@auren/schemas/catalog",

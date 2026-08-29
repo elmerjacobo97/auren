@@ -52,6 +52,10 @@ if (!help.stdout.includes("info")) {
   throw new Error("Built CLI help did not advertise the info command");
 }
 
+if (!help.stdout.includes("search")) {
+  throw new Error("Built CLI help did not advertise the search command");
+}
+
 if (help.stderr !== "") {
   throw new Error("Built CLI help wrote to stderr");
 }
@@ -72,6 +76,22 @@ for (const expected of [
 
 if (info.stderr !== "") {
   throw new Error("Built CLI info wrote to stderr");
+}
+
+const search = runCli("search", "hero");
+
+for (const expected of [
+  "1 result",
+  "hero-001 - Product launch hero",
+  "Category: marketing, Type: hero",
+]) {
+  if (!search.stdout.includes(expected)) {
+    throw new Error(`Built CLI search output did not contain ${expected}`);
+  }
+}
+
+if (search.stderr !== "") {
+  throw new Error("Built CLI search wrote to stderr");
 }
 
 const version = runCli("--version");

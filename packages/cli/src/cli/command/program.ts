@@ -7,12 +7,17 @@ import {
   registerInfoCommand,
   type RegisterInfoCommandOptions,
 } from "../commands/info/info-command.js";
+import {
+  registerSearchCommand,
+  type RegisterSearchCommandOptions,
+} from "../commands/search/search-command.js";
 import type { Terminal } from "../terminal/terminal.js";
 import { readCliVersion } from "../runtime/version.js";
 
 export interface CreateRootProgramOptions
   extends RegisterInitCommandOptions,
-    RegisterInfoCommandOptions {}
+    RegisterInfoCommandOptions,
+    RegisterSearchCommandOptions {}
 
 export function createRootProgram(
   terminal: Terminal,
@@ -31,6 +36,7 @@ export function createRootProgram(
 
   registerInitCommand(program, terminal, options);
   registerInfoCommand(program, terminal, options);
+  registerSearchCommand(program, terminal, options);
 
   return program;
 }

@@ -40,6 +40,9 @@ importers:
       '@auren/core':
         specifier: workspace:*
         version: link:../core
+      '@auren/registry':
+        specifier: workspace:*
+        version: link:../registry
       '@auren/schemas':
         specifier: workspace:*
         version: link:../schemas
