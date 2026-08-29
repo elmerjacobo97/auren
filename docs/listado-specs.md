@@ -362,7 +362,7 @@ Objetivo: hacer descubrible el catálogo sin entrar a la web.
 
 ## Spec 16 — `auren add`
 
-- [ ] Pendiente
+- [x] Implementada y archivada
 
 Implementar la función central del CLI.
 
