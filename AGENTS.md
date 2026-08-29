@@ -7,6 +7,12 @@
 - `pnpm build` builds Schemas before Registry; `pnpm dev` has no workspace implementation yet.
 - `blocks/` is versioned catalog source, not a workspace, and now holds real catalog content (marketing blocks). It follows the block standard in `blocks/README.md`; never add package manifests beneath it.
 
+## Spec Progress
+
+- Specs 01–11 in `docs/listado-specs.md` are implemented and archived; the next spec is Spec 12 — CLI Foundation.
+- Keep the checkboxes in `docs/listado-specs.md` synchronized with implementation status, marking a spec only after its OpenSpec change is implemented and archived.
+- Use `openspec/changes/archive/` as the record of completed changes; active OpenSpec work belongs under `openspec/changes/`.
+
 ## Commands
 
 - Install reproducibly: `pnpm install --frozen-lockfile`.

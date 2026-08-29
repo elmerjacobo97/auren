@@ -8,6 +8,8 @@ Cada spec debe desarrollarse e implementarse de forma independiente antes de con
 
 ## Spec 01 — Bootstrap del Monorepo
 
+- [x] Implementada y archivada
+
 Crear la estructura base del proyecto con:
 
 - pnpm workspaces
@@ -22,6 +24,8 @@ Objetivo: tener la base sobre la que vivirán todas las piezas de Auren.
 ---
 
 ## Spec 02 — Shared Configuration
+
+- [x] Implementada y archivada
 
 Crear las configuraciones compartidas del monorepo.
 
@@ -38,6 +42,8 @@ Objetivo: evitar configuraciones duplicadas entre Web, CLI, Core, Registry y MCP
 ---
 
 ## Spec 03 — Registry Schema
+
+- [x] Implementada y archivada
 
 Definir formalmente cómo se representa un elemento de Auren.
 
@@ -63,6 +69,8 @@ Objetivo: crear el contrato central de Auren.
 ---
 
 ## Spec 04 — Taxonomía del Catálogo
+
+- [x] Implementada y archivada
 
 Definir oficialmente las clasificaciones disponibles.
 
@@ -90,6 +98,8 @@ Objetivo: establecer una taxonomía consistente para humanos, CLI y agentes.
 
 ## Spec 05 — Registry Local
 
+- [x] Implementada y archivada
+
 Implementar el primer Registry funcional dentro del monorepo.
 
 Debe poder:
@@ -106,6 +116,8 @@ Objetivo: convertir el Registry en la fuente de verdad de Auren.
 ---
 
 ## Spec 06 — Block Standard
+
+- [x] Implementada y archivada
 
 Definir cómo debe construirse y organizarse cada bloque.
 
@@ -137,6 +149,8 @@ Objetivo: que todos los bloques sigan el mismo estándar.
 
 ## Spec 07 — Primer Bloque
 
+- [x] Implementada y archivada
+
 Crear el primer bloque real de Auren.
 
 Recomendación:
@@ -156,6 +170,8 @@ Objetivo: validar todo el flujo del Registry usando un bloque real.
 ---
 
 ## Spec 08 — Initial Block Catalog
+
+- [x] Implementada y archivada
 
 Crear el catálogo inicial del MVP.
 
@@ -182,6 +198,8 @@ Objetivo: disponer de suficiente contenido real para desarrollar y probar el res
 
 ## Spec 09 — Core Package
 
+- [x] Implementada y archivada
+
 Implementar `packages/core`.
 
 Debe contener la lógica compartida para:
@@ -198,6 +216,8 @@ Objetivo: evitar que CLI, Web y MCP implementen la misma lógica.
 ---
 
 ## Spec 10 — Project Detection
+
+- [x] Implementada y archivada
 
 Añadir al Core detección automática del proyecto consumidor.
 
@@ -217,6 +237,8 @@ Objetivo: permitir instalaciones adaptadas al proyecto del usuario.
 ---
 
 ## Spec 11 — Auren Configuration
+
+- [x] Implementada y archivada
 
 Crear el archivo:
 
@@ -238,6 +260,8 @@ Objetivo: mantener configuración persistente dentro de cada proyecto consumidor
 ---
 
 ## Spec 12 — CLI Foundation
+
+- [ ] Pendiente
 
 Crear `packages/cli`.
 
@@ -261,6 +285,8 @@ Objetivo: establecer la infraestructura del CLI.
 
 ## Spec 13 — `auren init`
 
+- [ ] Pendiente
+
 Implementar:
 
 ```bash
@@ -281,6 +307,8 @@ Objetivo: inicializar correctamente cualquier proyecto consumidor.
 ---
 
 ## Spec 14 — `auren info`
+
+- [ ] Pendiente
 
 Implementar:
 
@@ -303,6 +331,8 @@ Objetivo: permitir inspeccionar un elemento antes de instalarlo.
 ---
 
 ## Spec 15 — `auren search`
+
+- [ ] Pendiente
 
 Implementar búsqueda desde CLI.
 
@@ -332,6 +362,8 @@ Objetivo: hacer descubrible el catálogo sin entrar a la web.
 
 ## Spec 16 — `auren add`
 
+- [ ] Pendiente
+
 Implementar la función central del CLI.
 
 Ejemplo:
@@ -355,6 +387,8 @@ Objetivo: instalar código de Auren dentro del proyecto del usuario.
 
 ## Spec 17 — Dependency Resolution
 
+- [ ] Pendiente
+
 Implementar resolución automática de dependencias.
 
 Ejemplos:
@@ -371,6 +405,8 @@ Objetivo: que un bloque pueda instalarse sin que el usuario tenga que resolver m
 
 ## Spec 18 — shadcn/ui Compatibility
 
+- [ ] Pendiente
+
 Añadir compatibilidad explícita con proyectos que utilicen shadcn/ui.
 
 Debe permitir:
@@ -385,6 +421,8 @@ Objetivo: integrarse con shadcn sin convertirlo en una dependencia obligatoria d
 ---
 
 ## Spec 19 — Registry Build
+
+- [ ] Pendiente
 
 Crear el proceso que transforme los bloques fuente en un Registry distribuible.
 
@@ -403,6 +441,8 @@ Objetivo: separar el catálogo fuente del formato consumido públicamente.
 
 ## Spec 20 — Public Registry
 
+- [ ] Pendiente
+
 Publicar el Registry como recursos estáticos.
 
 Ejemplo conceptual:
@@ -417,6 +457,8 @@ Objetivo: permitir que Auren CLI funcione sin necesitar clonar el repositorio.
 ---
 
 ## Spec 21 — Remote CLI Registry
+
+- [ ] Pendiente
 
 Modificar el CLI para consumir el Registry remoto.
 
@@ -440,6 +482,8 @@ Objetivo: convertir el CLI en un producto distribuible real.
 
 ## Spec 22 — Web Foundation
 
+- [ ] Pendiente
+
 Crear:
 
 ```text
@@ -460,6 +504,8 @@ Objetivo: establecer la aplicación pública de Auren.
 
 ## Spec 23 — Catalog Web
 
+- [ ] Pendiente
+
 Crear el catálogo visual.
 
 Debe permitir navegar:
@@ -474,6 +520,8 @@ Objetivo: permitir descubrir visualmente el contenido de Auren.
 ---
 
 ## Spec 24 — Block Preview
+
+- [ ] Pendiente
 
 Crear páginas individuales para cada bloque.
 
@@ -497,6 +545,8 @@ Objetivo: convertir el Registry en una experiencia visual útil.
 
 ## Spec 25 — Catalog Filters
 
+- [ ] Pendiente
+
 Implementar filtros en la web.
 
 Permitir filtrar por:
@@ -514,6 +564,8 @@ Objetivo: facilitar la exploración cuando el catálogo crezca.
 
 ## Spec 26 — Copy Code
 
+- [ ] Pendiente
+
 Permitir copiar directamente el código desde la web.
 
 Objetivo: mantener Auren usable incluso sin CLI.
@@ -521,6 +573,8 @@ Objetivo: mantener Auren usable incluso sin CLI.
 ---
 
 ## Spec 27 — Collections Model
+
+- [ ] Pendiente
 
 Extender el Registry para soportar Collections.
 
@@ -544,6 +598,8 @@ Objetivo: ir más allá de bloques individuales y ofrecer sistemas visuales cohe
 
 ## Spec 28 — Collections Installation
 
+- [ ] Pendiente
+
 Permitir instalar Collections completas.
 
 Ejemplo:
@@ -557,6 +613,8 @@ Objetivo: instalar múltiples secciones compatibles en una sola operación.
 ---
 
 ## Spec 29 — Pages
+
+- [ ] Pendiente
 
 Añadir soporte para páginas completas.
 
@@ -574,6 +632,8 @@ Objetivo: ampliar el catálogo más allá de secciones individuales.
 
 ## Spec 30 — Templates
 
+- [ ] Pendiente
+
 Añadir soporte para templates completos.
 
 Ejemplos:
@@ -587,6 +647,8 @@ Objetivo: proporcionar puntos de partida completos para aplicaciones.
 ---
 
 ## Spec 31 — MCP Foundation
+
+- [ ] Pendiente
 
 Crear:
 
@@ -608,6 +670,8 @@ Objetivo: exponer Auren directamente a coding agents.
 
 ## Spec 32 — MCP Discovery Tools
 
+- [ ] Pendiente
+
 Implementar herramientas como:
 
 ```text
@@ -622,6 +686,8 @@ Objetivo: permitir que los agentes exploren Auren mediante lenguaje natural.
 ---
 
 ## Spec 33 — MCP Installation Tools
+
+- [ ] Pendiente
 
 Implementar herramientas relacionadas con instalación.
 
@@ -638,6 +704,8 @@ Objetivo: permitir que los coding agents implementen interfaces directamente en 
 ---
 
 ## Spec 34 — Agent Metadata
+
+- [ ] Pendiente
 
 Mejorar la metadata específicamente para IA.
 
@@ -656,6 +724,8 @@ Objetivo: que un agente pueda elegir correctamente entre diferentes bloques.
 ---
 
 ## Spec 35 — Smart Block Matching
+
+- [ ] Pendiente
 
 Implementar ranking de bloques según los requisitos solicitados.
 
@@ -683,6 +753,8 @@ Objetivo: mejorar la selección automática realizada por agentes.
 
 ## Spec 36 — Quality Validation
 
+- [ ] Pendiente
+
 Crear validaciones automáticas para los bloques.
 
 Validar:
@@ -701,6 +773,8 @@ Objetivo: evitar publicar bloques defectuosos.
 
 ## Spec 37 — Visual Testing
 
+- [ ] Pendiente
+
 Añadir pruebas visuales de los bloques.
 
 Utilizar Playwright.
@@ -711,6 +785,8 @@ Objetivo: detectar regresiones visuales antes de publicar cambios.
 
 ## Spec 38 — Accessibility Validation
 
+- [ ] Pendiente
+
 Añadir controles automáticos y reglas de accesibilidad.
 
 Objetivo: mantener un estándar mínimo de calidad en todo el catálogo.
@@ -718,6 +794,8 @@ Objetivo: mantener un estándar mínimo de calidad en todo el catálogo.
 ---
 
 ## Spec 39 — Versioning
+
+- [ ] Pendiente
 
 Definir cómo se versionarán:
 
@@ -731,6 +809,8 @@ Objetivo: evitar romper proyectos existentes cuando Auren evolucione.
 ---
 
 ## Spec 40 — Documentation
+
+- [ ] Pendiente
 
 Crear documentación oficial para:
 
@@ -754,11 +834,15 @@ Las siguientes specs no deberían bloquear el lanzamiento inicial.
 
 ## Spec 41 — Authentication
 
+- [ ] Pendiente
+
 Sistema de cuentas de usuario.
 
 ---
 
 ## Spec 42 — Auren Pro
+
+- [ ] Pendiente
 
 Separar contenido gratuito y premium.
 
@@ -766,11 +850,15 @@ Separar contenido gratuito y premium.
 
 ## Spec 43 — Licensing
 
+- [ ] Pendiente
+
 Sistema de licencias para usuarios Pro.
 
 ---
 
 ## Spec 44 — Payments
+
+- [ ] Pendiente
 
 Integración de pagos para adquirir Auren Pro.
 
@@ -778,11 +866,15 @@ Integración de pagos para adquirir Auren Pro.
 
 ## Spec 45 — Private Registry
 
+- [ ] Pendiente
+
 Protección y distribución del contenido premium.
 
 ---
 
 ## Spec 46 — User Library
+
+- [ ] Pendiente
 
 Favoritos, historial y contenido guardado.
 
@@ -790,11 +882,15 @@ Favoritos, historial y contenido guardado.
 
 ## Spec 47 — Teams
 
+- [ ] Pendiente
+
 Soporte para organizaciones y equipos.
 
 ---
 
 ## Spec 48 — Vue Support
+
+- [ ] Pendiente
 
 Añadir Vue como framework soportado.
 
@@ -802,11 +898,15 @@ Añadir Vue como framework soportado.
 
 ## Spec 49 — Svelte Support
 
+- [ ] Pendiente
+
 Añadir Svelte como framework soportado.
 
 ---
 
 ## Spec 50 — Community Registry
+
+- [ ] Pendiente
 
 Permitir que terceros creen o publiquen bloques compatibles con Auren.
 
