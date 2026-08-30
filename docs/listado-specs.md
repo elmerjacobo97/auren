@@ -545,7 +545,7 @@ Objetivo: convertir el Registry en una experiencia visual útil.
 
 ## Spec 25 — Catalog Filters
 
-- [ ] Pendiente
+- [x] Implementada y archivada
 
 Implementar filtros en la web.
 
