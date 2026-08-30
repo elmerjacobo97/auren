@@ -4,6 +4,7 @@ import type { CatalogFetch } from "../types/catalog.js";
 import {
   DEFAULT_REGISTRY_URL,
   normalizeRegistryDocumentRoot,
+  resolveRegistryDetailUrl,
   resolveRegistryDocumentRoot,
   resolveRegistryIndexUrl,
 } from "../utils/catalog-url.js";
@@ -11,7 +12,11 @@ import {
   CatalogRegistryService,
   type CatalogRegistryServiceOptions,
 } from "./catalog-registry.service.js";
-import { createIndex, createCatalogElement } from "../test/fixtures.js";
+import {
+  createCatalogElement,
+  createDetailElement,
+  createIndex,
+} from "../test/fixtures.js";
 
 function createJsonResponse(
   payload: unknown,
@@ -53,6 +58,12 @@ describe("catalog Registry URL", () => {
     expect(resolveRegistryIndexUrl("https://registry.example.test/auren")).toBe(
       "https://registry.example.test/auren/registry.json",
     );
+    expect(
+      resolveRegistryDetailUrl(
+        "hero 001",
+        "https://registry.example.test/auren/",
+      ),
+    ).toBe("https://registry.example.test/auren/blocks/hero%20001.json");
   });
 });
 
@@ -126,6 +137,94 @@ describe("CatalogRegistryService", () => {
       code: "malformed-json",
       message: "The Registry index response was malformed JSON.",
     });
+  });
+
+  it("loads a validated detail with the configured encoded URL and JSON headers", async () => {
+    const indexedElement = createCatalogElement("hero-001");
+    const detail = createDetailElement("hero-001");
+    const fetchImplementation = vi
+      .fn<CatalogFetch>()
+      .mockResolvedValue(createJsonResponse(detail));
+    const service = new CatalogRegistryService({ fetchImplementation });
+    const signal = new AbortController().signal;
+
+    await expect(
+      service.loadDetail({
+        registryUrl: "https://registry.example.test/auren/",
+        id: "hero-001",
+        indexedElement,
+        signal,
+      }),
+    ).resolves.toEqual(detail);
+
+    expect(fetchImplementation).toHaveBeenCalledTimes(1);
+    expect(fetchImplementation).toHaveBeenCalledWith(
+      "https://registry.example.test/auren/blocks/hero-001.json",
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        signal,
+      },
+    );
+  });
+
+  it("rejects invalid detail endpoints before making a detail request", async () => {
+    const { service, fetchImplementation } = createService(
+      createJsonResponse(createDetailElement("hero-001")),
+    );
+    const indexedElement = createCatalogElement("hero-001");
+
+    await expect(
+      service.loadDetail({
+        registryUrl: "https://registry.example.test/?private=secret",
+        id: "hero-001",
+        indexedElement,
+      }),
+    ).rejects.toMatchObject({ code: "invalid-endpoint" });
+    expect(fetchImplementation).not.toHaveBeenCalled();
+  });
+
+  it("sanitizes detail HTTP, content-type, malformed JSON, and transport failures", async () => {
+    const indexedElement = createCatalogElement("hero-001");
+    const http = createService(
+      new Response("private response", { status: 404 }),
+    ).service;
+    const html = createService(
+      new Response("<html>private response</html>", {
+        headers: { "content-type": "text/html" },
+      }),
+    ).service;
+    const malformed = createService(
+      new Response("{not-json", {
+        headers: { "content-type": "application/json" },
+      }),
+    ).service;
+    const transportFetch = vi
+      .fn<CatalogFetch>()
+      .mockRejectedValue(new Error("private transport details\nwith a stack"));
+    const transport = new CatalogRegistryService({
+      fetchImplementation: transportFetch,
+    });
+
+    const request = { id: "hero-001", indexedElement };
+
+    await expect(http.loadDetail(request)).rejects.toMatchObject({
+      code: "detail-http",
+      message: "The selected Registry detail request failed with HTTP 404.",
+    });
+    await expect(html.loadDetail(request)).rejects.toMatchObject({
+      code: "detail-content-type",
+      message: "The selected Registry detail response was not JSON.",
+    });
+    await expect(malformed.loadDetail(request)).rejects.toMatchObject({
+      code: "detail-malformed-json",
+      message: "The selected Registry detail response was malformed JSON.",
+    });
+    await expect(transport.loadDetail(request)).rejects.toMatchObject({
+      code: "detail-transport",
+      message: "The selected Registry detail request could not be completed.",
+    });
+    expect(transportFetch).toHaveBeenCalledTimes(1);
   });
 
   it("sanitizes transport failures and never requests block details", async () => {

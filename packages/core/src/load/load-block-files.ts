@@ -21,34 +21,44 @@ export async function loadBlockFiles(
   blockDir: string,
   element: CatalogElement,
 ): Promise<readonly ResolvedBlockFile[]> {
-  const resolvedFiles: ResolvedBlockFile[] = [];
+  const loadedFiles = await Promise.all(
+    element.files.map(async (file) => {
+      if (file.content !== undefined) {
+        return {
+          file: {
+            path: file.path,
+            kind: file.kind,
+            target: file.target,
+            content: file.content,
+          },
+          missingPath: null,
+        };
+      }
 
-  for (const file of element.files) {
-    if (file.content !== undefined) {
-      resolvedFiles.push({
-        path: file.path,
-        kind: file.kind,
-        target: file.target,
-        content: file.content,
-      });
-      continue;
-    }
+      try {
+        const content = await readFile(path.join(blockDir, file.path), "utf8");
+        return {
+          file: {
+            path: file.path,
+            kind: file.kind,
+            target: file.target,
+            content,
+          },
+          missingPath: null,
+        };
+      } catch {
+        return { file: null, missingPath: file.path };
+      }
+    }),
+  );
 
-    let content: string;
+  const missingFile = loadedFiles.find((result) => result.missingPath !== null);
 
-    try {
-      content = await readFile(path.join(blockDir, file.path), "utf8");
-    } catch {
-      throw new MissingBlockFileError(file.path);
-    }
-
-    resolvedFiles.push({
-      path: file.path,
-      kind: file.kind,
-      target: file.target,
-      content,
-    });
+  if (missingFile !== undefined && missingFile.missingPath !== null) {
+    throw new MissingBlockFileError(missingFile.missingPath);
   }
 
-  return resolvedFiles;
+  return loadedFiles.flatMap((result) =>
+    result.file === null ? [] : [result.file],
+  );
 }

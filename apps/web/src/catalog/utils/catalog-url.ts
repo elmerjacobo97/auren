@@ -2,6 +2,7 @@ import { createInvalidEndpointError } from "./catalog-errors.js";
 
 export const DEFAULT_REGISTRY_URL = "https://registry.auren.dev/";
 export const REGISTRY_INDEX_RESOURCE = "registry.json";
+export const REGISTRY_DETAIL_DIRECTORY = "blocks/";
 
 export function resolveRegistryDocumentRoot(
   configuredUrl: string | undefined = import.meta.env.VITE_AUREN_REGISTRY_URL,
@@ -44,5 +45,19 @@ export function resolveRegistryIndexUrl(
   return new URL(
     REGISTRY_INDEX_RESOURCE,
     normalizeRegistryDocumentRoot(documentRoot),
+  ).toString();
+}
+
+export function resolveRegistryDetailUrl(
+  id: string,
+  documentRoot = resolveRegistryDocumentRoot(),
+): string {
+  const resolvedDocumentRoot =
+    documentRoot === undefined ? resolveRegistryDocumentRoot() : documentRoot;
+  const normalizedRoot = normalizeRegistryDocumentRoot(resolvedDocumentRoot);
+
+  return new URL(
+    `${REGISTRY_DETAIL_DIRECTORY}${encodeURIComponent(id)}.json`,
+    normalizedRoot,
   ).toString();
 }

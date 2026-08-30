@@ -41,9 +41,12 @@ test("Web manifest and TypeScript settings match the application contract", () =
     "catalog/index.tsx",
     "catalog/route-paths.ts",
     "components/index.tsx",
+    "components/route.tsx",
     "blocks/index.tsx",
     "pages/index.tsx",
+    "pages/route.tsx",
     "collections/index.tsx",
+    "collections/route.tsx",
   ]
     .map((file) =>
       readFileSync(path.join(root, "apps/web/src/routes", file), "utf8"),

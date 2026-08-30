@@ -19,11 +19,10 @@ export async function detectTailwind(
   dependencies: Readonly<Record<string, string>>,
   diagnostics: ProjectDetectionDiagnostic[],
 ): Promise<TailwindDetection> {
-  const configPath = await firstExistingTailwindConfig(projectDir);
-  const installed = await loadInstalledPackageVersion(
-    projectDir,
-    "tailwindcss",
-  );
+  const [configPath, installed] = await Promise.all([
+    firstExistingTailwindConfig(projectDir),
+    loadInstalledPackageVersion(projectDir, "tailwindcss"),
+  ]);
 
   if (installed.unreadable) {
     diagnostics.push(

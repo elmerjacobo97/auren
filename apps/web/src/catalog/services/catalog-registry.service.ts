@@ -1,10 +1,23 @@
+import { parseCatalogDetail } from "../schemas/catalog-detail.js";
 import { parseCatalogIndex } from "../schemas/catalog-index.js";
 import {
   CatalogClientError,
+  createDetailContentTypeError,
+  createDetailHttpError,
+  createDetailMalformedJsonError,
+  createDetailTransportError,
   createTransportError,
 } from "../utils/catalog-errors.js";
-import { resolveRegistryIndexUrl } from "../utils/catalog-url.js";
-import type { CatalogFetch, CatalogIndexRequest } from "../types/catalog.js";
+import {
+  resolveRegistryDetailUrl,
+  resolveRegistryDocumentRoot,
+  resolveRegistryIndexUrl,
+} from "../utils/catalog-url.js";
+import type {
+  CatalogDetailRequest,
+  CatalogFetch,
+  CatalogIndexRequest,
+} from "../types/catalog.js";
 import type { CatalogElement } from "@auren/schemas/catalog";
 
 export interface CatalogRegistryServiceOptions {
@@ -67,6 +80,50 @@ export class CatalogRegistryService {
     }
 
     return parseCatalogIndex(payload);
+  }
+
+  async loadDetail({
+    registryUrl,
+    id,
+    indexedElement,
+    signal,
+  }: CatalogDetailRequest): Promise<CatalogElement> {
+    const documentRoot = resolveRegistryDocumentRoot(registryUrl);
+    const detailUrl = resolveRegistryDetailUrl(id, documentRoot);
+    const requestInit: RequestInit = {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    };
+
+    if (signal !== undefined) {
+      requestInit.signal = signal;
+    }
+
+    let response: Response;
+
+    try {
+      response = await this.fetchImplementation(detailUrl, requestInit);
+    } catch (error) {
+      throw createDetailTransportError(error);
+    }
+
+    if (response.status < 200 || response.status >= 300) {
+      throw createDetailHttpError(response.status);
+    }
+
+    if (!isJsonContentType(response.headers.get("content-type"))) {
+      throw createDetailContentTypeError();
+    }
+
+    let payload: unknown;
+
+    try {
+      payload = (await response.json()) as unknown;
+    } catch (error) {
+      throw createDetailMalformedJsonError(error);
+    }
+
+    return parseCatalogDetail(payload, { id, indexedElement });
   }
 }
 

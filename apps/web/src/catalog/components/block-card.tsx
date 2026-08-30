@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import type { CatalogElement } from "@auren/schemas/catalog";
 import { CatalogBlockMetadata } from "./catalog-block-metadata.js";
 import { CatalogClassificationList } from "./catalog-classification-list.js";
@@ -23,7 +24,14 @@ export function BlockCard({ block }: BlockCardProps) {
             className="mt-2 font-serif text-2xl font-semibold leading-tight tracking-tight text-[#17231d] dark:text-white"
             id={headingId}
           >
-            {block.name}
+            <Link
+              aria-label={`View ${block.name} (${block.id}) details`}
+              className="rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#52705b] dark:focus-visible:outline-lime-300"
+              params={{ id: block.id }}
+              to="/blocks/$id"
+            >
+              {block.name}
+            </Link>
           </h2>
         </div>
         <span

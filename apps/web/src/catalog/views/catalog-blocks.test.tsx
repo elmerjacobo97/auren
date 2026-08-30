@@ -1,10 +1,12 @@
+import { RouterContextProvider } from "@tanstack/react-router";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { CatalogClientError } from "../utils/catalog-errors.js";
-import { CatalogContext } from "../providers/catalog-provider.js";
+import { CatalogContext } from "../providers/catalog-context.js";
 import type { CatalogContextValue, CatalogState } from "../types/catalog.js";
 import { createCatalogElement } from "../test/fixtures.js";
 import { CatalogBlocks } from "./catalog-blocks.js";
+import { router } from "@/router";
 
 const block = createCatalogElement("hero-001", {
   name: "Product launch hero",
@@ -12,12 +14,19 @@ const block = createCatalogElement("hero-001", {
 });
 
 function renderWithState(state: CatalogState) {
-  const context: CatalogContextValue = { state, retry: vi.fn() };
+  const context: CatalogContextValue = {
+    state,
+    retry: vi.fn(),
+    loadBlockDetail: vi.fn(),
+    retryBlockDetail: vi.fn(),
+  };
 
   return renderToStaticMarkup(
-    <CatalogContext.Provider value={context}>
-      <CatalogBlocks />
-    </CatalogContext.Provider>,
+    <RouterContextProvider router={router}>
+      <CatalogContext.Provider value={context}>
+        <CatalogBlocks />
+      </CatalogContext.Provider>
+    </RouterContextProvider>,
   );
 }
 
@@ -47,7 +56,8 @@ describe("CatalogBlocks", () => {
     expect(markup).toContain("react");
     expect(markup).not.toContain("component.tsx");
     expect(markup).not.toContain("dependencies");
-    expect(markup).not.toContain("/blocks/");
+    expect(markup).toContain('href="/blocks/hero-001"');
+    expect(markup).toContain("View Product launch hero (hero-001) details");
   });
 
   it("renders a retryable unavailable state without raw error details", () => {

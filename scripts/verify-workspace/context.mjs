@@ -24,6 +24,7 @@ export const expectedWebScripts = {
 };
 export const expectedWebDependencies = {
   "@auren/schemas": "workspace:*",
+  "@codesandbox/sandpack-react": "2.20.0",
   "@tanstack/react-router": "1.170.32",
   react: "19.2.8",
   "react-dom": "19.2.8",

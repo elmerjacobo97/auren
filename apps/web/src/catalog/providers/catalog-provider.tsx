@@ -1,5 +1,4 @@
 import {
-  createContext,
   useCallback,
   useEffect,
   useMemo,
@@ -9,15 +8,17 @@ import {
 } from "react";
 import {
   CatalogClientError,
+  createInvalidDetailError,
   createTransportError,
 } from "../utils/catalog-errors.js";
 import {
   catalogRegistryService,
   type CatalogRegistryService,
 } from "../services/catalog-registry.service.js";
+import { resolveRegistryDocumentRoot } from "../utils/catalog-url.js";
+import type { CatalogElement } from "@auren/schemas/catalog";
 import type { CatalogContextValue, CatalogState } from "../types/catalog.js";
-
-export const CatalogContext = createContext<CatalogContextValue | null>(null);
+import { CatalogContext } from "./catalog-context.js";
 
 export interface CatalogProviderProps extends PropsWithChildren {
   readonly registryUrl?: string;
@@ -34,9 +35,23 @@ export function CatalogProvider({
   const controllerRef = useRef<AbortController | null>(null);
   const requestOwnerRef = useRef<(() => void) | null>(null);
   const requestIdRef = useRef(0);
+  const detailCacheRef = useRef(new Map<string, CatalogElement>());
+  const detailRequestsRef = useRef(new Map<string, Promise<CatalogElement>>());
+  const detailControllersRef = useRef(new Map<string, AbortController>());
+
+  const cancelDetailRequests = useCallback(() => {
+    for (const controller of detailControllersRef.current.values()) {
+      controller.abort();
+    }
+
+    detailControllersRef.current.clear();
+    detailRequestsRef.current.clear();
+    detailCacheRef.current.clear();
+  }, []);
 
   const startRequest = useCallback(() => {
     controllerRef.current?.abort();
+    cancelDetailRequests();
 
     const controller = new AbortController();
     const requestId = requestIdRef.current + 1;
@@ -59,7 +74,88 @@ export function CatalogProvider({
         }
       },
     );
-  }, [registryUrl, service]);
+  }, [cancelDetailRequests, registryUrl, service]);
+
+  const loadBlockDetail = useCallback(
+    async (id: string): Promise<CatalogElement> => {
+      const currentState = state;
+
+      if (currentState.status !== "success") {
+        throw createInvalidDetailError(
+          "A block detail cannot load before the Registry index succeeds.",
+        );
+      }
+
+      const indexedElement = currentState.blocks.find(
+        (block) => block.id === id,
+      );
+
+      if (indexedElement === undefined) {
+        throw createInvalidDetailError(
+          "The requested block is not present in the Registry index.",
+        );
+      }
+
+      const documentRoot = resolveRegistryDocumentRoot(registryUrl);
+      const cacheKey = `${documentRoot}\u0000${id}`;
+      const cachedDetail = detailCacheRef.current.get(cacheKey);
+
+      if (cachedDetail !== undefined) {
+        return cachedDetail;
+      }
+
+      const pendingRequest = detailRequestsRef.current.get(cacheKey);
+
+      if (pendingRequest !== undefined) {
+        return pendingRequest;
+      }
+
+      const controller = new AbortController();
+      detailControllersRef.current.set(cacheKey, controller);
+      const detailRequest =
+        registryUrl === undefined
+          ? { id, indexedElement, signal: controller.signal }
+          : { registryUrl, id, indexedElement, signal: controller.signal };
+      const request = service.loadDetail(detailRequest).then((detail) => {
+        if (mountedRef.current) {
+          detailCacheRef.current.set(cacheKey, detail);
+        }
+
+        return detail;
+      });
+
+      detailRequestsRef.current.set(cacheKey, request);
+      void request.then(
+        () => {
+          if (detailRequestsRef.current.get(cacheKey) === request) {
+            detailRequestsRef.current.delete(cacheKey);
+            detailControllersRef.current.delete(cacheKey);
+          }
+        },
+        () => {
+          if (detailRequestsRef.current.get(cacheKey) === request) {
+            detailRequestsRef.current.delete(cacheKey);
+            detailControllersRef.current.delete(cacheKey);
+          }
+        },
+      );
+
+      return request;
+    },
+    [registryUrl, service, state],
+  );
+
+  const retryBlockDetail = useCallback(
+    (id: string) => {
+      const documentRoot = resolveRegistryDocumentRoot(registryUrl);
+      const cacheKey = `${documentRoot}\u0000${id}`;
+      detailControllersRef.current.get(cacheKey)?.abort();
+      detailControllersRef.current.delete(cacheKey);
+      detailRequestsRef.current.delete(cacheKey);
+      detailCacheRef.current.delete(cacheKey);
+    },
+    [registryUrl],
+  );
 
   useEffect(() => {
     mountedRef.current = true;
@@ -80,18 +176,19 @@ export function CatalogProvider({
 
         controllerRef.current?.abort();
         controllerRef.current = null;
+        cancelDetailRequests();
         requestOwnerRef.current = null;
       });
     };
-  }, [startRequest]);
+  }, [cancelDetailRequests, startRequest]);
 
   const retry = useCallback(() => {
     setState({ status: "loading" });
     startRequest();
   }, [startRequest]);
   const contextValue = useMemo<CatalogContextValue>(
-    () => ({ state, retry }),
-    [retry, state],
+    () => ({ state, retry, loadBlockDetail, retryBlockDetail }),
+    [loadBlockDetail, retry, retryBlockDetail, state],
   );
 
   return (

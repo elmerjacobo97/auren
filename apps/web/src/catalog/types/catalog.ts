@@ -11,6 +11,13 @@ export interface CatalogIndexRequest {
   readonly signal?: AbortSignal;
 }
 
+export interface CatalogDetailRequest {
+  readonly registryUrl?: string;
+  readonly id: string;
+  readonly indexedElement: CatalogElement;
+  readonly signal?: AbortSignal;
+}
+
 export type CatalogState =
   | { readonly status: "loading" }
   | {
@@ -19,9 +26,17 @@ export type CatalogState =
     }
   | { readonly status: "error"; readonly error: CatalogClientError };
 
+export type CatalogDetailState =
+  | { readonly status: "loading" }
+  | { readonly status: "success"; readonly block: CatalogElement }
+  | { readonly status: "not-found"; readonly id: string }
+  | { readonly status: "error"; readonly error: CatalogClientError };
+
 export interface CatalogContextValue {
   readonly state: CatalogState;
   readonly retry: () => void;
+  readonly loadBlockDetail: (id: string) => Promise<CatalogElement>;
+  readonly retryBlockDetail: (id: string) => void;
 }
 
 export type CatalogSectionPath =

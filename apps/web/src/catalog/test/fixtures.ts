@@ -24,6 +24,21 @@ export function createCatalogElement(
   });
 }
 
+export function createDetailElement(
+  id: string,
+  changes: Record<string, unknown> = {},
+): CatalogElement {
+  const element = createCatalogElement(id, changes);
+
+  return {
+    ...element,
+    files: element.files.map((file) => ({
+      ...file,
+      content: file.kind === "asset" ? "aGVsbG8=" : `source for ${file.path}`,
+    })),
+  };
+}
+
 export function createIndex(blocks: readonly unknown[]) {
   return { schemaVersion: 1, blocks };
 }

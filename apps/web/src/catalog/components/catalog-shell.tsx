@@ -46,7 +46,10 @@ export function CatalogShell({ children }: CatalogShellProps) {
           >
             <ul className="flex flex-wrap gap-2">
               {catalogSections.map((section) => {
-                const isActive = location.pathname === section.path;
+                const isActive =
+                  location.pathname === section.path ||
+                  (section.path === "/blocks" &&
+                    location.pathname.startsWith("/blocks/"));
 
                 return (
                   <li key={section.path}>

@@ -1,6 +1,10 @@
 packages:
   - "apps/*"
   - "packages/*"
+minimumReleaseAge: 2880
+trustPolicy: no-downgrade
 minimumReleaseAgeExclude:
   - zod@4.5.1
   - happy-dom@20.12.0
+allowBuilds:
+  es5-ext: false

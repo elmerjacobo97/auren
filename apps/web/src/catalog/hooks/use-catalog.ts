@@ -1,5 +1,5 @@
 import { useContext } from "react";
-import { CatalogContext } from "../providers/catalog-provider.js";
+import { CatalogContext } from "../providers/catalog-context.js";
 import type { CatalogContextValue } from "../types/catalog.js";
 
 export function useCatalog(): CatalogContextValue {

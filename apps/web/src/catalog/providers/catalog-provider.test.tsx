@@ -1,12 +1,19 @@
+import { RouterContextProvider } from "@tanstack/react-router";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { StrictMode } from "react";
+import { StrictMode, useEffect, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { CatalogBlocks } from "../views/catalog-blocks.js";
 import type { CatalogFetch } from "../types/catalog.js";
-import { createCatalogElement, createIndex } from "../test/fixtures.js";
+import {
+  createCatalogElement,
+  createDetailElement,
+  createIndex,
+} from "../test/fixtures.js";
 import { useCatalog } from "../hooks/use-catalog.js";
 import { CatalogProvider } from "./catalog-provider.js";
 import { CatalogRegistryService } from "../services/catalog-registry.service.js";
+import { CatalogClientError } from "../utils/catalog-errors.js";
+import { router } from "@/router";
 
 const block = createCatalogElement("hero-001", {
   name: "Product launch hero",
@@ -23,6 +30,44 @@ function StatusProbe({ label }: { readonly label: string }) {
   const { state } = useCatalog();
 
   return <output data-testid={label}>{state.status}</output>;
+}
+
+function DetailProbe({ id }: { readonly id: string }) {
+  const { state, loadBlockDetail } = useCatalog();
+  const [detailName, setDetailName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (state.status !== "success") {
+      return;
+    }
+
+    void Promise.all([loadBlockDetail(id), loadBlockDetail(id)]).then(
+      ([first]) => setDetailName(first.name),
+    );
+  }, [id, loadBlockDetail, state]);
+
+  return (
+    <output data-testid="detail-probe">{detailName ?? state.status}</output>
+  );
+}
+
+function DetailAttemptProbe({ id }: { readonly id: string }) {
+  const { state, loadBlockDetail } = useCatalog();
+  const [result, setResult] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (state.status !== "success") {
+      return;
+    }
+
+    void loadBlockDetail(id).then(
+      () => setResult("loaded"),
+      (error: unknown) =>
+        setResult(error instanceof CatalogClientError ? error.code : "unknown"),
+    );
+  }, [id, loadBlockDetail, state]);
+
+  return <output data-testid="detail-attempt">{result ?? state.status}</output>;
 }
 
 describe("CatalogProvider", () => {
@@ -68,6 +113,58 @@ describe("CatalogProvider", () => {
     expect(fetchImplementation).toHaveBeenCalledTimes(1);
   });
 
+  it("loads only the selected detail and memoizes its successful request", async () => {
+    const detail = createDetailElement("hero-001", {
+      name: block.name,
+    });
+    const fetchImplementation = vi.fn<CatalogFetch>(async (input) => {
+      if (String(input).endsWith("/registry.json")) {
+        return createJsonResponse(createIndex([block]));
+      }
+
+      return createJsonResponse(detail);
+    });
+    const service = new CatalogRegistryService({ fetchImplementation });
+
+    render(
+      <CatalogProvider service={service}>
+        <DetailProbe id={block.id} />
+      </CatalogProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("detail-probe").textContent).toBe(block.name);
+    });
+
+    expect(fetchImplementation).toHaveBeenCalledTimes(2);
+    expect(
+      fetchImplementation.mock.calls.map(([input]) => String(input)),
+    ).toEqual([
+      "https://registry.auren.dev/registry.json",
+      "https://registry.auren.dev/blocks/hero-001.json",
+    ]);
+  });
+
+  it("does not request a detail for an ID absent from the index", async () => {
+    const fetchImplementation = vi
+      .fn<CatalogFetch>()
+      .mockResolvedValue(createJsonResponse(createIndex([block])));
+    const service = new CatalogRegistryService({ fetchImplementation });
+
+    render(
+      <CatalogProvider service={service}>
+        <DetailAttemptProbe id="missing-999" />
+      </CatalogProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("detail-attempt").textContent).toBe(
+        "invalid-detail",
+      );
+    });
+    expect(fetchImplementation).toHaveBeenCalledTimes(1);
+  });
+
   it("retries through the provider and replaces the error state", async () => {
     const fetchImplementation = vi
       .fn<CatalogFetch>()
@@ -76,9 +173,11 @@ describe("CatalogProvider", () => {
     const service = new CatalogRegistryService({ fetchImplementation });
 
     render(
-      <CatalogProvider service={service}>
-        <CatalogBlocks />
-      </CatalogProvider>,
+      <RouterContextProvider router={router}>
+        <CatalogProvider service={service}>
+          <CatalogBlocks />
+        </CatalogProvider>
+      </RouterContextProvider>,
     );
 
     await screen.findByRole("alert");

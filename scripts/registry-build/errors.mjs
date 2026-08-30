@@ -5,7 +5,3 @@ export class RegistryBuildError extends Error {
     this.details = details;
   }
 }
-
-export function throwRegistryBuildError(message, details = []) {
-  throw new RegistryBuildError(message, details);
-}

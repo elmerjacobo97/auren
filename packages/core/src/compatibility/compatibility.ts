@@ -18,11 +18,13 @@ export function validateCompatibility(
   element: CatalogElement,
   target: CompatibilityTarget = {},
 ): CompatibilityReport {
+  const elementFrameworks = new Set(element.frameworks);
+  const elementFeatures = new Set(element.features);
   const missingFrameworks = (target.frameworks ?? []).filter(
-    (framework) => !element.frameworks.includes(framework),
+    (framework) => !elementFrameworks.has(framework),
   );
   const missingFeatures = (target.features ?? []).filter(
-    (feature) => !element.features.includes(feature),
+    (feature) => !elementFeatures.has(feature),
   );
 
   return {

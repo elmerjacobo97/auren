@@ -89,18 +89,18 @@ async function findPresentLockfiles(projectDir: string): Promise<
     name: PackageManagerName;
   }>
 > {
-  const presentLockfiles = [] as Array<{
-    relativePath: string;
-    name: PackageManagerName;
-  }>;
+  const presentLockfiles = await Promise.all(
+    lockfiles.map(async (lockfile) => {
+      const exists = await fileExists(
+        path.join(projectDir, lockfile.relativePath),
+      );
+      return exists ? lockfile : null;
+    }),
+  );
 
-  for (const lockfile of lockfiles) {
-    if (await fileExists(path.join(projectDir, lockfile.relativePath))) {
-      presentLockfiles.push(lockfile);
-    }
-  }
-
-  return presentLockfiles;
+  return presentLockfiles.filter(
+    (lockfile): lockfile is NonNullable<typeof lockfile> => lockfile !== null,
+  );
 }
 
 function reportLockfileConflicts(
