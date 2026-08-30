@@ -521,7 +521,7 @@ Objetivo: permitir descubrir visualmente el contenido de Auren.
 
 ## Spec 24 — Block Preview
 
-- [ ] Pendiente
+- [x] Implementada y archivada
 
 Crear páginas individuales para cada bloque.
 
