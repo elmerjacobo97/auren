@@ -482,7 +482,7 @@ Objetivo: convertir el CLI en un producto distribuible real.
 
 ## Spec 22 — Web Foundation
 
-- [ ] Pendiente
+- [x] Implementada y archivada
 
 Crear:
 
