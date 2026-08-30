@@ -504,7 +504,7 @@ Objetivo: establecer la aplicación pública de Auren.
 
 ## Spec 23 — Catalog Web
 
-- [ ] Pendiente
+- [x] Implementada y archivada
 
 Crear el catálogo visual.
 
