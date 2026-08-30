@@ -117,38 +117,26 @@ describe("createLocalCatalogSource", () => {
 
   it("associates exact-ID metadata with its physical block directory", async () => {
     const root = await createFixture();
-    const blockDir = await writeElement(
-      root,
-      "marketing",
-      "hero",
-      "hero-001",
-      validElement,
-    );
+    await writeElement(root, "marketing", "hero", "hero-001", validElement);
 
     const source = createLocalCatalogSource({ catalogRoot: root });
 
-    await expect(source.getInstallableById("hero-001")).resolves.toEqual({
-      element: validElement,
-      blockDir,
-    });
+    const record = await source.getInstallableById("hero-001");
+
+    expect(record?.element).toEqual(validElement);
+    expect(record?.loadFiles).toEqual(expect.any(Function));
   });
 
   it("lists deterministic installable records and shares them with metadata listing", async () => {
     const root = await createFixture();
-    const heroDir = await writeElement(
-      root,
-      "marketing",
-      "hero",
-      "hero-001",
-      validElement,
-    );
+    await writeElement(root, "marketing", "hero", "hero-001", validElement);
     const navbarElement = {
       ...validElement,
       id: "navbar-001",
       category: "application-ui",
       type: "navbar",
     } as const;
-    const navbarDir = await writeElement(
+    await writeElement(
       root,
       "application-ui",
       "navbar",
@@ -158,9 +146,15 @@ describe("createLocalCatalogSource", () => {
 
     const source = createLocalCatalogSource({ catalogRoot: root });
 
-    await expect(source.listInstallable()).resolves.toEqual([
-      { element: validElement, blockDir: heroDir },
-      { element: navbarElement, blockDir: navbarDir },
+    const records = await source.listInstallable();
+
+    expect(records.map(({ element }) => element)).toEqual([
+      validElement,
+      navbarElement,
+    ]);
+    expect(records.map(({ loadFiles }) => loadFiles)).toEqual([
+      expect.any(Function),
+      expect.any(Function),
     ]);
     await expect(source.list()).resolves.toEqual([validElement, navbarElement]);
   });

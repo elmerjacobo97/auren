@@ -10,8 +10,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import type { CatalogElement } from "@auren/schemas/catalog";
 import { afterEach, describe, expect, it } from "vitest";
+import type { CatalogSource } from "../../catalog/catalog-source.js";
 import { runCli } from "../../command/runner.js";
-import { createLocalCatalogSource } from "../../catalog/local-catalog-source.js";
 
 const element: CatalogElement = {
   id: "hero-001",
@@ -40,14 +40,12 @@ afterEach(async () => {
 
 async function createFixture(): Promise<{
   consumerRoot: string;
-  catalogRoot: string;
+  source: CatalogSource;
 }> {
   const root = await mkdtemp(path.join(tmpdir(), "auren-cli-search-readonly-"));
   fixtureRoots.push(root);
 
   const consumerRoot = path.join(root, "consumer");
-  const catalogRoot = path.join(root, "catalog");
-
   await mkdir(path.join(consumerRoot, "src/components"), { recursive: true });
   await writeFile(
     path.join(consumerRoot, "auren.json"),
@@ -57,15 +55,14 @@ async function createFixture(): Promise<{
     path.join(consumerRoot, "src/components/existing.tsx"),
     "export const Existing = () => null;\n",
   );
-  await mkdir(path.join(catalogRoot, "marketing/hero/hero-001"), {
-    recursive: true,
-  });
-  await writeFile(
-    path.join(catalogRoot, "marketing/hero/hero-001/registry.json"),
-    `${JSON.stringify(element, null, 2)}\n`,
-  );
 
-  return { consumerRoot, catalogRoot };
+  return {
+    consumerRoot,
+    source: {
+      getById: async () => undefined,
+      list: async () => [element],
+    },
+  };
 }
 
 async function snapshotTree(root: string): Promise<Map<string, string>> {
@@ -95,7 +92,7 @@ async function snapshotTree(root: string): Promise<Map<string, string>> {
 
 async function invoke(
   consumerRoot: string,
-  catalogRoot: string,
+  source: CatalogSource,
   args: readonly string[],
 ): Promise<{ status: number; stdout: string; stderr: string }> {
   let stdout = "";
@@ -105,7 +102,7 @@ async function invoke(
 
   try {
     const status = await runCli(["node", "auren", "search", ...args], {
-      catalogSource: createLocalCatalogSource({ catalogRoot }),
+      catalogSource: source,
       color: false,
       stdout: (text) => {
         stdout += text;
@@ -122,54 +119,50 @@ async function invoke(
 }
 
 describe("auren search read-only behavior", () => {
-  it("leaves the consumer project and catalog unchanged after success", async () => {
-    const { consumerRoot, catalogRoot } = await createFixture();
+  it("leaves the consumer project and injected source unchanged after success", async () => {
+    const { consumerRoot, source } = await createFixture();
     const consumerBefore = await snapshotTree(consumerRoot);
-    const catalogBefore = await snapshotTree(catalogRoot);
 
-    const result = await invoke(consumerRoot, catalogRoot, ["hero"]);
+    const result = await invoke(consumerRoot, source, ["hero"]);
 
     expect(result.status).toBe(0);
     expect(result.stderr).toBe("");
     expect(result.stdout).toContain("hero-001");
     expect(await snapshotTree(consumerRoot)).toEqual(consumerBefore);
-    expect(await snapshotTree(catalogRoot)).toEqual(catalogBefore);
   });
 
-  it("leaves the catalog unchanged after a catalog metadata failure", async () => {
+  it("reports an injected source failure without mutating the consumer", async () => {
     const root = await mkdtemp(
-      path.join(tmpdir(), "auren-cli-search-readonly-"),
+      path.join(tmpdir(), "auren-cli-search-readonly-error-"),
     );
     fixtureRoots.push(root);
 
     const consumerRoot = path.join(root, "consumer");
-    const catalogRoot = path.join(root, "catalog");
-    const blockDir = path.join(catalogRoot, "marketing/hero/hero-001");
-
     await mkdir(path.join(consumerRoot, "src/components"), { recursive: true });
     await writeFile(
       path.join(consumerRoot, "auren.json"),
       '{"framework":"react","tailwind":true,"components":"src/components"}\n',
     );
-    await mkdir(blockDir, { recursive: true });
-    await writeFile(path.join(blockDir, "registry.json"), "{ invalid");
-
     const consumerBefore = await snapshotTree(consumerRoot);
-    const catalogBefore = await snapshotTree(catalogRoot);
+    const source: CatalogSource = {
+      getById: async () => undefined,
+      list: async () => {
+        throw new Error("injected catalog failed");
+      },
+    };
 
-    const result = await invoke(consumerRoot, catalogRoot, []);
+    const result = await invoke(consumerRoot, source, []);
 
     expect(result.status).toBe(1);
     expect(result.stdout).toBe("");
-    expect(result.stderr).toContain("Invalid catalog metadata");
+    expect(result.stderr).toContain("injected catalog failed");
     expect(await snapshotTree(consumerRoot)).toEqual(consumerBefore);
-    expect(await snapshotTree(catalogRoot)).toEqual(catalogBefore);
   });
 
   it("does not install files, resolve dependencies, or prepare an add", async () => {
-    const { consumerRoot, catalogRoot } = await createFixture();
+    const { consumerRoot, source } = await createFixture();
 
-    const result = await invoke(consumerRoot, catalogRoot, []);
+    const result = await invoke(consumerRoot, source, []);
 
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("1 result");

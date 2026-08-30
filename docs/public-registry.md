@@ -1,8 +1,12 @@
 # Public Registry
 
 Auren publishes the generated Registry as a provider-neutral static document
-root. The release command validates the local Registry Build output and writes
-a complete copy to `dist/public-registry/`:
+root. The CLI consumes `https://registry.auren.dev/` by default; deployments can
+serve the same document root from localhost, staging, or another host and pass
+that URL with `--registry-url` or `AUREN_REGISTRY_URL`.
+
+The release command validates the local Registry Build output and writes a
+complete copy to `dist/public-registry/`:
 
 ```bash
 pnpm registry:publish
@@ -19,7 +23,8 @@ node scripts/publish-registry.mjs \
 
 The publisher is offline. It does not upload files, select a hosting provider,
 create DNS records, or add credentials. Both generated directories are ignored
-build artifacts and must not be committed.
+build artifacts and must not be committed. The CLI has no persistent catalog
+cache and no local-checkout fallback.
 
 ## Document-root contract
 
@@ -56,4 +61,6 @@ change.
 The host name, base URL, cache headers, CORS configuration, upload mechanism,
 DNS, and credentials belong to deployment configuration. No generated Registry
 file needs to change when the same document root is served from localhost,
-staging, or production.
+staging, or production. Endpoint selection is `--registry-url` first,
+`AUREN_REGISTRY_URL` second, and the production default last; the selected URL
+is not written to `auren.json`.

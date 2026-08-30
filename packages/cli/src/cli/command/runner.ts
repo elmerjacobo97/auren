@@ -1,6 +1,7 @@
 import { CommanderError, type Command } from "commander";
 import { CommandExitError } from "./command-exit-error.js";
 import { createRootProgram, type CreateRootProgramOptions } from "./program.js";
+import type { RemoteCatalogSourceOptions } from "../catalog/remote-catalog-source.js";
 import {
   createTerminal,
   type Terminal,
@@ -24,7 +25,9 @@ export type CliProgramFactory = (
   options?: CreateRootProgramOptions,
 ) => Command;
 
-export interface RunCliOptions extends TerminalOptions {
+export interface RunCliOptions
+  extends TerminalOptions,
+    RemoteCatalogSourceOptions {
   createProgram?: CliProgramFactory;
   prompt?: InitPrompt;
   catalogSource?: CatalogSource;
@@ -58,6 +61,11 @@ export async function runCli(
       installableCatalogSource: options.installableCatalogSource,
       packageInstaller: options.packageInstaller,
       shadcnInstaller: options.shadcnInstaller,
+      registryUrl: options.registryUrl,
+      fetch: options.fetch,
+      fetchImpl: options.fetchImpl,
+      timeoutMs: options.timeoutMs,
+      env: options.env,
     });
 
     for (const command of [program, ...program.commands]) {

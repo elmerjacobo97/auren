@@ -5,6 +5,7 @@ import type {
   AurenConfiguration,
   AurenConfigurationError,
 } from "@auren/core/configuration";
+import { loadBlockFiles, MissingBlockFileError } from "@auren/core/load/files";
 import type { CatalogElement } from "@auren/schemas/catalog";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
@@ -125,10 +126,31 @@ function createRecords(
   elements: readonly CatalogElement[],
   root: string,
 ): InstallableCatalogRecord[] {
-  return elements.map((element) => ({
-    element,
-    blockDir: path.join(root, element.category, element.type, element.id),
-  }));
+  return elements.map((element) => {
+    const blockDir = path.join(
+      root,
+      element.category,
+      element.type,
+      element.id,
+    );
+
+    return {
+      element,
+      loadFiles: async () => {
+        try {
+          return await loadBlockFiles(blockDir, element);
+        } catch (error) {
+          if (error instanceof MissingBlockFileError) {
+            throw new MissingBlockFileError(
+              path.join(blockDir, error.missingPath),
+            );
+          }
+
+          throw error;
+        }
+      },
+    };
+  });
 }
 
 async function createCatalogRoot(): Promise<string> {

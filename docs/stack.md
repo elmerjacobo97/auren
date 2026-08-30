@@ -303,6 +303,11 @@ auren info
 auren list
 ```
 
+El CLI consulta el Registry público estático por defecto. Puede usarse
+`--registry-url <url>` por comando o `AUREN_REGISTRY_URL` por proceso; la
+precedencia es opción de comando, variable de entorno y, por último,
+`https://registry.auren.dev/`.
+
 Ejemplos:
 
 ```bash
@@ -310,11 +315,11 @@ npx auren add hero-001
 ```
 
 ```bash
-npx auren search hero
+npx auren search hero --registry-url https://staging.example.test/auren/
 ```
 
 ```bash
-npx auren info hero-001
+AUREN_REGISTRY_URL=https://staging.example.test/auren npx auren info hero-001
 ```
 
 ---
@@ -433,17 +438,18 @@ blocks/
 
 Inicialmente no será necesario un backend.
 
-El catálogo podrá publicarse como archivos estáticos.
-
-Ejemplo conceptual:
+El catálogo se publica como un document root estático y el CLI puede consultar
+directamente estos recursos:
 
 ```text
-registry.auren.dev/index.json
-registry.auren.dev/blocks/hero-001.json
-registry.auren.dev/blocks/pricing-001.json
+https://registry.auren.dev/registry.json
+https://registry.auren.dev/blocks/hero-001.json
+https://registry.auren.dev/blocks/pricing-001.json
 ```
 
-El CLI puede consultar directamente estos archivos.
+`info` y `search` solicitan solo `registry.json`; `add` solicita los detalles
+de los bloques resueltos. El CLI no persiste una caché ni vuelve a un checkout
+local de `blocks/` si el Registry remoto no está disponible.
 
 ---
 

@@ -1,6 +1,7 @@
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadBlockFiles, MissingBlockFileError } from "@auren/core/load/files";
 import { loadBlockMetadata } from "@auren/core/load/metadata";
 import type { CatalogElement } from "@auren/schemas/catalog";
 import { categoryValues } from "@auren/schemas/taxonomy";
@@ -88,7 +89,22 @@ async function loadCatalog(
       throw new DuplicateCatalogIdError(element.id, previousDir, blockDir);
     }
 
-    records.set(element.id, { element, blockDir });
+    records.set(element.id, {
+      element,
+      loadFiles: async () => {
+        try {
+          return await loadBlockFiles(blockDir, element);
+        } catch (error) {
+          if (error instanceof MissingBlockFileError) {
+            throw new MissingBlockFileError(
+              path.join(blockDir, error.missingPath),
+            );
+          }
+
+          throw error;
+        }
+      },
+    });
     blockDirectoriesById.set(element.id, blockDir);
   }
 

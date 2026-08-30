@@ -1,11 +1,14 @@
 import type { Command } from "commander";
 import { CommandExitError } from "../../command/command-exit-error.js";
 import type { CatalogSource } from "../../catalog/catalog-source.js";
-import { createLocalCatalogSource } from "../../catalog/local-catalog-source.js";
+import {
+  createRemoteCatalogSource,
+  type RemoteCatalogSourceOptions,
+} from "../../catalog/remote-catalog-source.js";
 import type { Terminal } from "../../terminal/terminal.js";
 import { runInfoFlow } from "./info-flow.js";
 
-export interface RegisterInfoCommandOptions {
+export interface RegisterInfoCommandOptions extends RemoteCatalogSourceOptions {
   readonly catalogSource?: CatalogSource;
 }
 
@@ -19,11 +22,17 @@ export function registerInfoCommand(
     .description("Inspect a catalog element")
     .usage("<id>")
     .argument("<id>", "catalog element ID")
-    .action(async (id: string) => {
+    .option("--registry-url <url>", "remote Registry document-root URL")
+    .action(async (id: string, actionOptions: { registryUrl?: string }) => {
       const status = await runInfoFlow({
         id,
         terminal,
-        source: options.catalogSource ?? createLocalCatalogSource(),
+        source:
+          options.catalogSource ??
+          createRemoteCatalogSource({
+            ...options,
+            registryUrl: actionOptions.registryUrl ?? options.registryUrl,
+          }),
       });
 
       if (status !== 0) {

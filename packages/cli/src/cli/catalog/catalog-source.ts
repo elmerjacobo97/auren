@@ -1,3 +1,4 @@
+import type { ResolvedBlockFile } from "@auren/core/load/files";
 import type { CatalogElement } from "@auren/schemas/catalog";
 
 export interface CatalogSource {
@@ -7,7 +8,7 @@ export interface CatalogSource {
 
 export type InstallableCatalogRecord = {
   readonly element: CatalogElement;
-  readonly blockDir: string;
+  readonly loadFiles: () => Promise<readonly ResolvedBlockFile[]>;
 };
 
 export interface InstallableCatalogSource extends CatalogSource {

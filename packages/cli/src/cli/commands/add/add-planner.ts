@@ -6,7 +6,8 @@ import {
 } from "@auren/core/configuration";
 import { validateCompatibility } from "@auren/core/compatibility";
 import { resolveProjectDependencies } from "@auren/core/dependencies";
-import { loadBlockFiles, MissingBlockFileError } from "@auren/core/load/files";
+import { MissingBlockFileError } from "@auren/core/load/files";
+import type { ResolvedBlockFile } from "@auren/core/load/files";
 import { detectProject, type ProjectDetection } from "@auren/core/project";
 import { resolveBlock } from "@auren/core/resolve";
 import { LocalRegistry } from "@auren/registry";
@@ -129,15 +130,13 @@ export async function createAddInstallationPlan({
       throw new MissingInstallableRecordError(element.id);
     }
 
-    let resolvedFiles: Awaited<ReturnType<typeof loadBlockFiles>>;
+    let resolvedFiles: readonly ResolvedBlockFile[];
 
     try {
-      resolvedFiles = await loadBlockFiles(record.blockDir, element);
+      resolvedFiles = await record.loadFiles();
     } catch (error) {
       if (error instanceof MissingBlockFileError) {
-        throw new MissingInstallSourceFileError(
-          path.join(record.blockDir, error.missingPath),
-        );
+        throw new MissingInstallSourceFileError(error.missingPath);
       }
 
       throw error;

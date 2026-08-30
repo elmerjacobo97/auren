@@ -458,7 +458,7 @@ Objetivo: permitir que Auren CLI funcione sin necesitar clonar el repositorio.
 
 ## Spec 21 — Remote CLI Registry
 
-- [ ] Pendiente
+- [x] Implementada y completada
 
 Modificar el CLI para consumir el Registry remoto.
 

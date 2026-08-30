@@ -1,7 +1,5 @@
 import { readFileSync } from "node:fs";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { EOL, tmpdir } from "node:os";
-import path from "node:path";
+import { EOL } from "node:os";
 import { fileURLToPath } from "node:url";
 import { Command, Option } from "commander";
 import type { CatalogElement } from "@auren/schemas/catalog";
@@ -9,7 +7,10 @@ import { describe, expect, it, vi } from "vitest";
 import { createRootProgram } from "./program.js";
 import { runCli, type RunCliOptions } from "./runner.js";
 import type { CatalogSource } from "../catalog/catalog-source.js";
-import { createLocalCatalogSource } from "../catalog/local-catalog-source.js";
+import type {
+  RemoteCatalogResponse,
+  RemoteFetch,
+} from "../catalog/remote-catalog-source.js";
 import { createTerminal } from "../terminal/terminal.js";
 import { readCliVersion } from "../runtime/version.js";
 
@@ -38,6 +39,38 @@ async function invoke(
   });
 
   return { status, stdout, stderr };
+}
+
+function createJsonResponse(
+  value: unknown,
+  status = 200,
+  contentType = "application/json; charset=utf-8",
+): RemoteCatalogResponse {
+  const body = JSON.stringify(value);
+
+  return {
+    status,
+    statusText: status === 200 ? "OK" : "Unavailable",
+    headers: {
+      get(name: string) {
+        return name.toLowerCase() === "content-type" ? contentType : null;
+      },
+    },
+    text: async () => body,
+  };
+}
+
+function createRemoteFetch(
+  handler: (url: string) => Promise<RemoteCatalogResponse>,
+): { fetch: RemoteFetch; calls: string[]; spy: ReturnType<typeof vi.fn> } {
+  const calls: string[] = [];
+  const spy = vi.fn(async (input: string | URL) => {
+    const url = String(input);
+    calls.push(url);
+    return handler(url);
+  });
+
+  return { fetch: spy as unknown as RemoteFetch, calls, spy };
 }
 
 describe("Auren root CLI", () => {
@@ -85,6 +118,26 @@ describe("Auren root CLI", () => {
       "search",
       "add",
     ]);
+  });
+
+  it("keeps command help request-free and advertises the Registry override", async () => {
+    const { fetch, spy } = createRemoteFetch(async () =>
+      createJsonResponse({ schemaVersion: 1, blocks: [] }),
+    );
+
+    for (const args of [
+      ["info", "--help"],
+      ["search", "--help"],
+      ["add", "--help"],
+    ] as const) {
+      const result = await invoke(args, { fetch });
+
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain("--registry-url");
+      expect(result.stderr).toBe("");
+    }
+
+    expect(spy).not.toHaveBeenCalled();
   });
 
   it("keeps successful output on stdout and failures on stderr", async () => {
@@ -218,6 +271,7 @@ describe("auren info command", () => {
 
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("Usage: auren info <id>");
+    expect(result.stdout).toContain("--registry-url");
     expect(result.stderr).toBe("");
     expect(getById).not.toHaveBeenCalled();
     expect(list).not.toHaveBeenCalled();
@@ -243,13 +297,17 @@ describe("auren info command", () => {
     },
   );
 
-  it("uses an injected source and writes successful output only to stdout", async () => {
+  it("uses an injected source before attempting remote transport", async () => {
     const getById = vi.fn(async (id: string) =>
       id === infoElement.id ? infoElement : undefined,
     );
+    const { fetch, spy } = createRemoteFetch(async () => {
+      throw new Error("injected source should win");
+    });
 
     const result = await invoke(["info", "hero-001"], {
       catalogSource: { getById, list: vi.fn(async () => [infoElement]) },
+      fetch,
     });
 
     expect(result).toEqual({
@@ -258,6 +316,42 @@ describe("auren info command", () => {
       stderr: "",
     });
     expect(getById).toHaveBeenCalledWith("hero-001");
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("applies command Registry URLs before environment URLs", async () => {
+    const { fetch, calls } = createRemoteFetch(async () =>
+      createJsonResponse({ schemaVersion: 1, blocks: [infoElement] }),
+    );
+
+    const commandResult = await invoke(
+      [
+        "info",
+        "hero-001",
+        "--registry-url",
+        "https://command.example.test/catalog",
+      ],
+      {
+        env: { AUREN_REGISTRY_URL: "https://environment.example.test/catalog" },
+        fetch,
+      },
+    );
+
+    expect(commandResult.status).toBe(0);
+    expect(calls).toEqual([
+      "https://command.example.test/catalog/registry.json",
+    ]);
+
+    calls.splice(0);
+    const environmentResult = await invoke(["info", "hero-001"], {
+      env: { AUREN_REGISTRY_URL: "https://environment.example.test/catalog" },
+      fetch,
+    });
+
+    expect(environmentResult.status).toBe(0);
+    expect(calls).toEqual([
+      "https://environment.example.test/catalog/registry.json",
+    ]);
   });
 
   it("reports unknown IDs without a partial result", async () => {
@@ -273,44 +367,36 @@ describe("auren info command", () => {
     expect(result.stderr).toContain("Catalog element not found");
   });
 
-  it("reports an unavailable local catalog", async () => {
-    const fixtureRoot = await mkdtemp(path.join(tmpdir(), "auren-cli-runner-"));
+  it("reports an unavailable remote Registry without a stack trace", async () => {
+    const { fetch } = createRemoteFetch(async () => {
+      throw new Error("socket unavailable");
+    });
 
-    try {
-      const result = await invoke(["info", "hero-001"], {
-        catalogSource: createLocalCatalogSource({
-          catalogRoot: `${fixtureRoot}/missing`,
-        }),
-      });
+    const result = await invoke(["info", "hero-001"], {
+      registryUrl: "https://registry.example.test",
+      fetch,
+    });
 
-      expect(result.status).toBe(1);
-      expect(result.stdout).toBe("");
-      expect(result.stderr).toContain("Local catalog is unavailable");
-    } finally {
-      await rm(fixtureRoot, { recursive: true, force: true });
-    }
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("Unable to reach remote Registry resource");
+    expect(result.stderr).not.toContain("\n    at ");
   });
 
-  it("reports invalid local catalog metadata without a stack trace", async () => {
-    const fixtureRoot = await mkdtemp(path.join(tmpdir(), "auren-cli-runner-"));
-    const blockDir = `${fixtureRoot}/marketing/hero/hero-001`;
+  it("reports an invalid remote index without a response body or stack trace", async () => {
+    const { fetch } = createRemoteFetch(async () =>
+      createJsonResponse({ schemaVersion: 2, blocks: [] }),
+    );
 
-    try {
-      await mkdir(blockDir, { recursive: true });
-      await writeFile(`${blockDir}/registry.json`, "{ invalid");
+    const result = await invoke(["info", "hero-001"], {
+      registryUrl: "https://registry.example.test",
+      fetch,
+    });
 
-      const result = await invoke(["info", "hero-001"], {
-        catalogSource: createLocalCatalogSource({ catalogRoot: fixtureRoot }),
-      });
-
-      expect(result.status).toBe(1);
-      expect(result.stdout).toBe("");
-      expect(result.stderr).toContain("Invalid catalog metadata");
-      expect(result.stderr).toContain(blockDir);
-      expect(result.stderr).not.toContain("\n    at ");
-    } finally {
-      await rm(fixtureRoot, { recursive: true, force: true });
-    }
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("Invalid remote Registry resource");
+    expect(result.stderr).not.toContain("\n    at ");
   });
 });
 
@@ -351,6 +437,7 @@ describe("auren search command", () => {
 
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("Usage: auren search [query]");
+    expect(result.stdout).toContain("--registry-url");
     expect(result.stderr).toBe("");
 
     for (const option of [
@@ -409,43 +496,55 @@ describe("auren search command", () => {
     expect(list).toHaveBeenCalledTimes(1);
   });
 
-  it("reports an unavailable local catalog", async () => {
-    const fixtureRoot = await mkdtemp(path.join(tmpdir(), "auren-cli-runner-"));
+  it("searches remote index metadata without downloading block details", async () => {
+    const { fetch, calls } = createRemoteFetch(async () =>
+      createJsonResponse({
+        schemaVersion: 1,
+        blocks: [searchNavbarElement, infoElement],
+      }),
+    );
 
-    try {
-      const result = await invoke(["search", "hero"], {
-        catalogSource: createLocalCatalogSource({
-          catalogRoot: `${fixtureRoot}/missing`,
-        }),
-      });
+    const result = await invoke(
+      ["search", "hero", "--registry-url", "https://command.example.test"],
+      { fetch },
+    );
 
-      expect(result.status).toBe(1);
-      expect(result.stdout).toBe("");
-      expect(result.stderr).toContain("Local catalog is unavailable");
-    } finally {
-      await rm(fixtureRoot, { recursive: true, force: true });
-    }
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toContain("1 result");
+    expect(result.stdout).toContain("hero-001");
+    expect(calls).toEqual(["https://command.example.test/registry.json"]);
   });
 
-  it("reports invalid local catalog metadata without a stack trace", async () => {
-    const fixtureRoot = await mkdtemp(path.join(tmpdir(), "auren-cli-runner-"));
-    const blockDir = `${fixtureRoot}/marketing/hero/hero-001`;
+  it("reports an unavailable remote Registry without a stack trace", async () => {
+    const { fetch } = createRemoteFetch(async () => {
+      throw new Error("socket unavailable");
+    });
 
-    try {
-      await mkdir(blockDir, { recursive: true });
-      await writeFile(`${blockDir}/registry.json`, "{ invalid");
+    const result = await invoke(["search", "hero"], {
+      registryUrl: "https://registry.example.test",
+      fetch,
+    });
 
-      const result = await invoke(["search", "hero"], {
-        catalogSource: createLocalCatalogSource({ catalogRoot: fixtureRoot }),
-      });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("Unable to reach remote Registry resource");
+    expect(result.stderr).not.toContain("\n    at ");
+  });
 
-      expect(result.status).toBe(1);
-      expect(result.stdout).toBe("");
-      expect(result.stderr).toContain("Invalid catalog metadata");
-      expect(result.stderr).toContain(blockDir);
-      expect(result.stderr).not.toContain("\n    at ");
-    } finally {
-      await rm(fixtureRoot, { recursive: true, force: true });
-    }
+  it("reports an invalid remote index without a response body or stack trace", async () => {
+    const { fetch } = createRemoteFetch(async () =>
+      createJsonResponse({ schemaVersion: 2, blocks: [] }),
+    );
+
+    const result = await invoke(["search", "hero"], {
+      registryUrl: "https://registry.example.test",
+      fetch,
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("Invalid remote Registry resource");
+    expect(result.stderr).not.toContain("\n    at ");
   });
 });

@@ -50,6 +50,25 @@ pnpm dev
 
 `pnpm check` validates workspace topology and shared configuration without generating the Registry. `pnpm registry:build` validates the source catalog and writes the distributable `dist/registry/registry.json` plus one detail file per block; it also accepts `-- --blocks-root <path> --output-root <path>` through the executable for isolated builds. `pnpm registry:publish` builds that Registry and publishes a validated, byte-preserving static copy under `dist/public-registry`; direct publication accepts `-- --registry-root <path> --output-root <path>`. `pnpm typecheck` runs each shell through Turborepo. `pnpm test` runs package tests through the same graph. `lint` and `format` are read-only Biome checks; only their `:fix` variants write changes. `build` runs workspace builds and then produces the ignored `dist/registry` and `dist/public-registry` artifacts; `dev` remains the Turborepo entry point for later implementation specs.
 
+### CLI Registry source
+
+`auren info`, `auren search`, and `auren add` use the public Registry document root
+`https://registry.auren.dev/` by default. Override it per command or process:
+
+```bash
+auren search hero --registry-url https://staging.example.test/auren/
+AUREN_REGISTRY_URL=https://staging.example.test/auren auren info hero-001
+```
+
+Endpoint precedence is `--registry-url`, then `AUREN_REGISTRY_URL`, then the
+production default. A valid endpoint is an `http` or `https` static document
+root exposing `registry.json` and `blocks/<id>.json`; it cannot contain
+credentials, a query, or a fragment. The CLI does not write the endpoint to
+`auren.json`, persist a catalog cache, inspect a local `blocks/` checkout, or
+fall back to one when the remote Registry is unavailable. `info` and `search`
+request only `registry.json`; `add` requests detail files only for the resolved
+installation chain.
+
 ## Shared Conventions
 
 - Root `tsconfig.base.json` owns universal strictness and module resolution. Node shells extend `tsconfig.node.json`; browser applications extend `tsconfig.web.json`.

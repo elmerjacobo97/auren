@@ -56,6 +56,11 @@ export function createRootProgram(
         : undefined),
     packageInstaller: options.packageInstaller,
     shadcnInstaller: options.shadcnInstaller,
+    registryUrl: options.registryUrl,
+    fetch: options.fetch,
+    fetchImpl: options.fetchImpl,
+    timeoutMs: options.timeoutMs,
+    env: options.env,
   });
 
   return program;
