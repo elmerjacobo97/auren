@@ -3,3 +3,4 @@ packages:
   - "packages/*"
 minimumReleaseAgeExclude:
   - zod@4.5.1
+  - happy-dom@20.12.0

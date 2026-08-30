@@ -547,6 +547,12 @@ function validateWebManifest(manifest) {
       );
     }
   }
+
+  if (manifest.dependencies?.["@auren/schemas"] !== "workspace:*") {
+    errors.push(
+      "apps/web/package.json: dependencies.@auren/schemas must use the public workspace entrypoint at workspace:*",
+    );
+  }
 }
 
 export function validatePackageShells() {

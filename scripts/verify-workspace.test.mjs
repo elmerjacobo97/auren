@@ -14,6 +14,7 @@ import {
   expectedSchemasPaths,
   expectedWebDependencies,
   expectedWebDevDependencies,
+  expectedWebPaths,
   expectedWebScripts,
   expectedWorkspaceProfiles,
 } from "./verify-workspace.mjs";
@@ -35,6 +36,19 @@ test("Web manifest and TypeScript settings match the application contract", () =
     path.join(root, "apps/web/src/router.tsx"),
     "utf8",
   );
+  const routeSource = [
+    "__root.tsx",
+    "catalog/index.tsx",
+    "catalog/route-paths.ts",
+    "components/index.tsx",
+    "blocks/index.tsx",
+    "pages/index.tsx",
+    "collections/index.tsx",
+  ]
+    .map((file) =>
+      readFileSync(path.join(root, "apps/web/src/routes", file), "utf8"),
+    )
+    .join("\n");
   const stylesheet = readFileSync(
     path.join(root, "apps/web/src/styles.css"),
     "utf8",
@@ -50,8 +64,12 @@ test("Web manifest and TypeScript settings match the application contract", () =
   assert.equal(manifest.private, true);
   assert.equal(manifest.type, "module");
   assert.deepEqual(manifest.dependencies, expectedWebDependencies);
+  assert.equal(manifest.dependencies["@auren/schemas"], "workspace:*");
   assert.deepEqual(manifest.devDependencies, expectedWebDevDependencies);
   assert.deepEqual(manifest.scripts, expectedWebScripts);
+  assert.equal(manifest.scripts.test, "vitest run");
+  assert.equal("@auren/core" in manifest.dependencies, false);
+  assert.equal("@auren/cli" in manifest.dependencies, false);
   assert.equal("exports" in manifest, false);
   assert.equal("main" in manifest, false);
   assert.equal("module" in manifest, false);
@@ -62,7 +80,10 @@ test("Web manifest and TypeScript settings match the application contract", () =
     sourceConfig.include,
     expectedWorkspaceProfiles["apps/web"].include,
   );
-  assert.equal("compilerOptions" in sourceConfig, false);
+  assert.deepEqual(sourceConfig.compilerOptions?.paths, expectedWebPaths);
+  assert.equal(sourceConfig.compilerOptions?.exactOptionalPropertyTypes, true);
+  assert.equal(sourceConfig.compilerOptions?.noImplicitOverride, true);
+  assert.equal(sourceConfig.compilerOptions?.noUncheckedIndexedAccess, true);
   assert.equal(existsSync(path.join(root, "apps/web/src/index.ts")), false);
   assert.equal(existsSync(path.join(root, "apps/web/src/vite-env.d.ts")), true);
 
@@ -71,8 +92,15 @@ test("Web manifest and TypeScript settings match the application contract", () =
   assert.match(entrypoint, /import "\.\/styles\.css"/);
   assert.match(entrypoint, /createRoot/);
   assert.match(entrypoint, /RouterProvider/);
-  assert.match(router, /createRootRoute/);
-  assert.equal(router.includes('path: "/"'), true);
+  assert.match(router, /createRouter/);
+  assert.match(routeSource, /createRootRoute/);
+  assert.equal(routeSource.includes('path: "/"'), true);
+  for (const pathName of ["/components", "/blocks", "/pages", "/collections"]) {
+    assert.equal(routeSource.includes(`path: "${pathName}"`), true);
+  }
+  assert.equal(router.includes("createRoute("), false);
+  assert.equal(router.includes("CatalogOverview"), false);
+  assert.equal(`${router}\n${routeSource}`.includes("$id"), false);
   assert.equal(
     router.includes('declare module "@tanstack/react-router"'),
     true,
@@ -80,6 +108,8 @@ test("Web manifest and TypeScript settings match the application contract", () =
   assert.equal(stylesheet, '@import "tailwindcss";\n');
   assert.match(viteConfig, /@vitejs\/plugin-react/);
   assert.match(viteConfig, /@tailwindcss\/vite/);
+  assert.match(viteConfig, /fileURLToPath/);
+  assert.match(viteConfig, /alias/);
   assert.equal(existsSync(path.join(root, "apps/web/index.html")), true);
 });
 

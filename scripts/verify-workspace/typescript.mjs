@@ -5,6 +5,7 @@ import {
   expectedCorePaths,
   expectedRegistryPaths,
   expectedSchemasPaths,
+  expectedWebPaths,
   expectedWorkspaceProfiles,
   readJson,
   requireFile,
@@ -93,7 +94,32 @@ export function validateTypeScriptProfiles() {
       );
     }
 
-    if (relative === "packages/schemas") {
+    if (relative === "apps/web") {
+      const compilerOptions = tsconfig.compilerOptions ?? {};
+      const paths = compilerOptions.paths ?? {};
+
+      if (
+        Object.keys(paths).length !== Object.keys(expectedWebPaths).length ||
+        Object.entries(expectedWebPaths).some(
+          ([alias, expectedTargets]) =>
+            !arraysEqual(paths[alias], expectedTargets),
+        )
+      ) {
+        errors.push(
+          `${configPath}: compilerOptions.paths must contain only the local web source alias`,
+        );
+      }
+
+      for (const option of [
+        "exactOptionalPropertyTypes",
+        "noImplicitOverride",
+        "noUncheckedIndexedAccess",
+      ]) {
+        if (compilerOptions[option] !== true) {
+          errors.push(`${configPath}: compilerOptions.${option} must be true`);
+        }
+      }
+    } else if (relative === "packages/schemas") {
       const compilerOptions = tsconfig.compilerOptions ?? {};
       const paths = compilerOptions.paths ?? {};
 

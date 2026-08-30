@@ -19,17 +19,24 @@ export const expectedWebScripts = {
   dev: "vite",
   build: "vite build",
   preview: "vite preview",
+  test: "vitest run",
   typecheck: expectedTypecheckScript,
 };
 export const expectedWebDependencies = {
+  "@auren/schemas": "workspace:*",
   "@tanstack/react-router": "1.170.32",
   react: "19.2.8",
   "react-dom": "19.2.8",
 };
+export const expectedWebPaths = {
+  "@/*": ["./src/*"],
+};
 export const expectedWebDevDependencies = {
   "@tailwindcss/vite": "4.3.3",
+  "@testing-library/react": "16.3.3",
   "@types/react-dom": "19.2.5",
   "@vitejs/plugin-react": "6.1.1",
+  "happy-dom": "20.12.0",
   tailwindcss: "4.3.3",
   vite: "8.2.2",
 };
@@ -155,8 +162,13 @@ export const expectedCliPaths = {
 export const expectedWorkspaceProfiles = {
   "apps/web": {
     extends: "../../tsconfig.web.json",
-    include: ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"],
-    entrypoints: ["src/main.tsx", "vite.config.ts"],
+    include: [
+      "src/**/*.ts",
+      "src/**/*.tsx",
+      "vite.config.ts",
+      "vitest.config.ts",
+    ],
+    entrypoints: ["src/main.tsx", "vite.config.ts", "vitest.config.ts"],
   },
   "packages/schemas": {
     extends: "../../tsconfig.node.json",

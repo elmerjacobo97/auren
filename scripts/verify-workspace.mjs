@@ -13,6 +13,7 @@ export {
   expectedSchemasPaths,
   expectedWebDependencies,
   expectedWebDevDependencies,
+  expectedWebPaths,
   expectedWebScripts,
   expectedWorkspaceProfiles,
   expectedBlockCategories,
