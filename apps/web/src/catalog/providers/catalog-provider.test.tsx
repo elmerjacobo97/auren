@@ -2,18 +2,22 @@ import { RouterContextProvider } from "@tanstack/react-router";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { StrictMode, useEffect, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { CatalogBlocks } from "../views/catalog-blocks.js";
-import type { CatalogFetch } from "../types/catalog.js";
+import { router } from "@/router";
+import {
+  type CatalogFilterState,
+  emptyCatalogFilterState,
+} from "../filters/catalog-filters.js";
+import { useCatalog } from "../hooks/use-catalog.js";
+import { CatalogRegistryService } from "../services/catalog-registry.service.js";
 import {
   createCatalogElement,
   createDetailElement,
   createIndex,
 } from "../test/fixtures.js";
-import { useCatalog } from "../hooks/use-catalog.js";
-import { CatalogProvider } from "./catalog-provider.js";
-import { CatalogRegistryService } from "../services/catalog-registry.service.js";
+import type { CatalogFetch } from "../types/catalog.js";
 import { CatalogClientError } from "../utils/catalog-errors.js";
-import { router } from "@/router";
+import { CatalogBlocks } from "../views/catalog-blocks.js";
+import { CatalogProvider } from "./catalog-provider.js";
 
 const block = createCatalogElement("hero-001", {
   name: "Product launch hero",
@@ -68,6 +72,20 @@ function DetailAttemptProbe({ id }: { readonly id: string }) {
   }, [id, loadBlockDetail, state]);
 
   return <output data-testid="detail-attempt">{result ?? state.status}</output>;
+}
+
+function FilteredCatalogProbe() {
+  const [filters, setFilters] = useState<CatalogFilterState>(
+    emptyCatalogFilterState,
+  );
+
+  return (
+    <CatalogBlocks
+      filters={filters}
+      onClearFilters={() => setFilters(emptyCatalogFilterState)}
+      onFiltersChange={setFilters}
+    />
+  );
 }
 
 describe("CatalogProvider", () => {
@@ -163,6 +181,36 @@ describe("CatalogProvider", () => {
       );
     });
     expect(fetchImplementation).toHaveBeenCalledTimes(1);
+  });
+
+  it("filters the loaded index locally without requesting registry details", async () => {
+    const fetchImplementation = vi
+      .fn<CatalogFetch>()
+      .mockResolvedValue(createJsonResponse(createIndex([block])));
+    const service = new CatalogRegistryService({ fetchImplementation });
+
+    render(
+      <RouterContextProvider router={router}>
+        <CatalogProvider service={service}>
+          <FilteredCatalogProbe />
+        </CatalogProvider>
+      </RouterContextProvider>,
+    );
+
+    await screen.findByText(block.name);
+    expect(fetchImplementation).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(screen.getByLabelText("Category"), {
+      target: { value: "application-ui" },
+    });
+    await screen.findByRole("heading", {
+      name: "No blocks match these filters",
+    });
+
+    expect(fetchImplementation).toHaveBeenCalledTimes(1);
+    expect(
+      fetchImplementation.mock.calls.map(([input]) => String(input)),
+    ).toEqual(["https://registry.auren.dev/registry.json"]);
   });
 
   it("retries through the provider and replaces the error state", async () => {
