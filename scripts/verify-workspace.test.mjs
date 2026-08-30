@@ -12,6 +12,10 @@ import {
   expectedCorePaths,
   expectedSchemasExports,
   expectedSchemasPaths,
+  expectedWebDependencies,
+  expectedWebDevDependencies,
+  expectedWebScripts,
+  expectedWorkspaceProfiles,
 } from "./verify-workspace.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -19,6 +23,65 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 function readJson(relativePath) {
   return JSON.parse(readFileSync(path.join(root, relativePath), "utf8"));
 }
+
+test("Web manifest and TypeScript settings match the application contract", () => {
+  const manifest = readJson("apps/web/package.json");
+  const sourceConfig = readJson("apps/web/tsconfig.json");
+  const entrypoint = readFileSync(
+    path.join(root, "apps/web/src/main.tsx"),
+    "utf8",
+  );
+  const router = readFileSync(
+    path.join(root, "apps/web/src/router.tsx"),
+    "utf8",
+  );
+  const stylesheet = readFileSync(
+    path.join(root, "apps/web/src/styles.css"),
+    "utf8",
+  );
+  const viteConfig = readFileSync(
+    path.join(root, "apps/web/vite.config.ts"),
+    "utf8",
+  );
+  const html = readFileSync(path.join(root, "apps/web/index.html"), "utf8");
+
+  assert.equal(manifest.name, "@auren/web");
+  assert.equal(manifest.version, "0.0.0");
+  assert.equal(manifest.private, true);
+  assert.equal(manifest.type, "module");
+  assert.deepEqual(manifest.dependencies, expectedWebDependencies);
+  assert.deepEqual(manifest.devDependencies, expectedWebDevDependencies);
+  assert.deepEqual(manifest.scripts, expectedWebScripts);
+  assert.equal("exports" in manifest, false);
+  assert.equal("main" in manifest, false);
+  assert.equal("module" in manifest, false);
+  assert.equal("bin" in manifest, false);
+
+  assert.equal(sourceConfig.extends, "../../tsconfig.web.json");
+  assert.deepEqual(
+    sourceConfig.include,
+    expectedWorkspaceProfiles["apps/web"].include,
+  );
+  assert.equal("compilerOptions" in sourceConfig, false);
+  assert.equal(existsSync(path.join(root, "apps/web/src/index.ts")), false);
+  assert.equal(existsSync(path.join(root, "apps/web/src/vite-env.d.ts")), true);
+
+  assert.match(html, /<div id="root"><\/div>/);
+  assert.match(html, /src="\/src\/main\.tsx"/);
+  assert.match(entrypoint, /import "\.\/styles\.css"/);
+  assert.match(entrypoint, /createRoot/);
+  assert.match(entrypoint, /RouterProvider/);
+  assert.match(router, /createRootRoute/);
+  assert.equal(router.includes('path: "/"'), true);
+  assert.equal(
+    router.includes('declare module "@tanstack/react-router"'),
+    true,
+  );
+  assert.equal(stylesheet, '@import "tailwindcss";\n');
+  assert.match(viteConfig, /@vitejs\/plugin-react/);
+  assert.match(viteConfig, /@tailwindcss\/vite/);
+  assert.equal(existsSync(path.join(root, "apps/web/index.html")), true);
+});
 
 test("Core manifest matches the pinned executable-package contract", () => {
   const manifest = readJson("packages/core/package.json");

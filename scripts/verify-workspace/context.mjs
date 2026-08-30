@@ -15,6 +15,24 @@ export const expectedPackageVersion = "0.0.0";
 export const expectedSchemasZodVersion = "4.5.1";
 export const expectedVitestVersion = "4.1.11";
 export const expectedTypecheckScript = "tsc --project tsconfig.json --noEmit";
+export const expectedWebScripts = {
+  dev: "vite",
+  build: "vite build",
+  preview: "vite preview",
+  typecheck: expectedTypecheckScript,
+};
+export const expectedWebDependencies = {
+  "@tanstack/react-router": "1.170.32",
+  react: "19.2.8",
+  "react-dom": "19.2.8",
+};
+export const expectedWebDevDependencies = {
+  "@tailwindcss/vite": "4.3.3",
+  "@types/react-dom": "19.2.5",
+  "@vitejs/plugin-react": "6.1.1",
+  tailwindcss: "4.3.3",
+  vite: "8.2.2",
+};
 export const expectedRegistryBuildScript =
   "tsc --project tsconfig.build.json && node scripts/verify-dist.mjs";
 export const expectedCliDependencies = {
@@ -137,8 +155,8 @@ export const expectedCliPaths = {
 export const expectedWorkspaceProfiles = {
   "apps/web": {
     extends: "../../tsconfig.web.json",
-    include: ["src/**/*.ts", "src/**/*.tsx"],
-    entrypoints: ["src/index.ts"],
+    include: ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"],
+    entrypoints: ["src/main.tsx", "vite.config.ts"],
   },
   "packages/schemas": {
     extends: "../../tsconfig.node.json",

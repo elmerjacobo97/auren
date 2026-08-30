@@ -13,6 +13,9 @@ import {
   expectedSchemasZodVersion,
   expectedTypecheckScript,
   expectedVitestVersion,
+  expectedWebDependencies,
+  expectedWebDevDependencies,
+  expectedWebScripts,
   expectedWorkspaceGlobs,
   expectedPackages,
   hasExactVersion,
@@ -524,6 +527,28 @@ export function validateCliManifest(manifest) {
   requireFile("packages/cli/scripts/verify-dist.mjs");
 }
 
+function validateWebManifest(manifest) {
+  const expectedDependencies = {
+    dependencies: expectedWebDependencies,
+    devDependencies: expectedWebDevDependencies,
+  };
+
+  for (const [section, expected] of Object.entries(expectedDependencies)) {
+    const actual = manifest[section] ?? {};
+
+    if (
+      Object.keys(actual).length !== Object.keys(expected).length ||
+      Object.entries(expected).some(
+        ([dependency, version]) => actual[dependency] !== version,
+      )
+    ) {
+      errors.push(
+        `apps/web/package.json: ${section} must contain only the pinned web dependencies`,
+      );
+    }
+  }
+}
+
 export function validatePackageShells() {
   const packageNames = new Set(Object.values(expectedPackages));
 
@@ -577,6 +602,9 @@ export function validatePackageShells() {
       };
     } else if (relative === "packages/cli") {
       expectedScripts = expectedCliScripts;
+    } else if (relative === "apps/web") {
+      expectedScripts = expectedWebScripts;
+      validateWebManifest(manifest);
     } else {
       expectedScripts = { typecheck: expectedTypecheckScript };
     }

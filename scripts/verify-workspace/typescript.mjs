@@ -161,6 +161,10 @@ export function validateTypeScriptProfiles() {
       );
     }
 
+    if (relative === "apps/web") {
+      requireFile(`${relative}/index.html`);
+    }
+
     for (const entrypoint of expected.entrypoints) {
       requireFile(`${relative}/${entrypoint}`);
     }

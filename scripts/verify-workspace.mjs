@@ -11,6 +11,10 @@ export {
   expectedCorePaths,
   expectedSchemasExports,
   expectedSchemasPaths,
+  expectedWebDependencies,
+  expectedWebDevDependencies,
+  expectedWebScripts,
+  expectedWorkspaceProfiles,
   expectedBlockCategories,
 } from "./verify-workspace/context.mjs";
 
