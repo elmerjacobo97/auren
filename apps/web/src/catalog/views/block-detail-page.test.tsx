@@ -43,7 +43,9 @@ const indexedBlock = createCatalogElement("hero-001", {
   ],
 });
 
-const detailBlock = createDetailElement("hero-001", {
+const componentSource = 'export const component = "preserved";\n';
+const utilitySource = 'export const utility = "  exact";\r\n\r\n';
+const detailElement = createDetailElement("hero-001", {
   name: indexedBlock.name,
   description: indexedBlock.description,
   category: indexedBlock.category,
@@ -56,6 +58,16 @@ const detailBlock = createDetailElement("hero-001", {
   metadata: indexedBlock.metadata,
   files: indexedBlock.files,
 });
+const detailBlock = {
+  ...detailElement,
+  files: detailElement.files.map((file) =>
+    file.path === "component.tsx"
+      ? { ...file, content: componentSource }
+      : file.path === "utilities/types.ts"
+        ? { ...file, content: utilitySource }
+        : file,
+  ),
+};
 
 function createJsonResponse(payload: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(payload), {
@@ -183,14 +195,120 @@ describe("BlockDetailPage", () => {
     expect(screen.getByText("Preview unavailable")).toBeTruthy();
     expect(screen.getByText("assets/logo.png")).toBeTruthy();
     expect(screen.getByText(/<strong>escaped<\/strong>/)).toBeTruthy();
-    expect(
-      screen.getByText("source for component.tsx").parentElement?.className,
-    ).toContain("overflow-x-auto");
+    const componentCode = screen.getByText(
+      (_, element) =>
+        element?.tagName === "CODE" && element.textContent === componentSource,
+    );
+    expect(componentCode.parentElement?.className).toContain("overflow-x-auto");
     expect(screen.getByText("npx auren add hero-001").className).toContain(
       "break-all",
     );
     expect(fetchImplementation).toHaveBeenCalledTimes(2);
   });
+
+  it("copies each selected text file exactly without changing source or fetching again", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    installClipboard(writeText);
+    const fetchImplementation = createCatalogDetailHarness();
+
+    await screen.findByRole("heading", { name: detailBlock.name });
+
+    const componentCode = screen.getByText(
+      (_, element) =>
+        element?.tagName === "CODE" && element.textContent === componentSource,
+    );
+    expect(componentCode.textContent).toBe(componentSource);
+    expect(
+      screen.getByRole("button", { name: "Copy code from component.tsx" }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Copy code from assets/logo.png" }),
+    ).toBeNull();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Copy code from component.tsx" }),
+    );
+
+    expect(await screen.findByText("Code copied.")).toBeTruthy();
+    expect(writeText).toHaveBeenCalledWith(componentSource);
+    expect(componentCode.textContent).toBe(componentSource);
+
+    fireEvent.click(screen.getByText("utilities/types.ts"));
+    const utilityButton = await screen.findByRole("button", {
+      name: "Copy code from utilities/types.ts",
+    });
+    fireEvent.click(utilityButton);
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenNthCalledWith(2, utilitySource);
+    });
+    expect(fetchImplementation).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps source copy feedback independent for each file", async () => {
+    const writeText = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("denied"));
+    installClipboard(writeText);
+    createCatalogDetailHarness();
+    await screen.findByRole("heading", { name: detailBlock.name });
+
+    const componentButton = screen.getByRole("button", {
+      name: "Copy code from component.tsx",
+    });
+    fireEvent.click(componentButton);
+    expect((await screen.findByText("Code copied.")).textContent).toContain(
+      "Code copied",
+    );
+    expect(componentButton.textContent).toContain("Copied");
+
+    fireEvent.click(screen.getByText("utilities/types.ts"));
+    const utilityButton = await screen.findByRole("button", {
+      name: "Copy code from utilities/types.ts",
+    });
+    fireEvent.click(utilityButton);
+
+    expect(
+      await screen.findByText(
+        "The code could not be copied; select it to copy manually.",
+      ),
+    ).toBeTruthy();
+    expect(componentButton.textContent).toContain("Copied");
+    expect(utilityButton.textContent).toContain("Copy code");
+    expect(screen.queryByText("denied")).toBeNull();
+  });
+
+  it.each([
+    ["unsupported", undefined, "Clipboard access is not supported here"],
+    [
+      "failed",
+      vi.fn().mockRejectedValue(new Error("denied")),
+      "The code could not be copied",
+    ],
+  ] as const)(
+    "reports %s source clipboard state with manual-copy guidance",
+    async (_state, writeText, message) => {
+      installClipboard(writeText);
+      createCatalogDetailHarness();
+      await screen.findByRole("heading", { name: detailBlock.name });
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Copy code from component.tsx" }),
+      );
+
+      expect(
+        await screen.findByText((content) => content.includes(message)),
+      ).toBeTruthy();
+      expect(
+        screen.getByText(
+          (_, element) =>
+            element?.tagName === "CODE" &&
+            element.textContent === componentSource,
+        ).textContent,
+      ).toBe(componentSource);
+    },
+  );
 
   it("does not render partial detail content and retries the detail request", async () => {
     const fetchImplementation = createCatalogDetailHarness([
@@ -233,7 +351,9 @@ describe("BlockDetailPage", () => {
         }),
       );
 
-      expect(await screen.findByText(new RegExp(message))).toBeTruthy();
+      expect(
+        await screen.findByText((content) => content.includes(message)),
+      ).toBeTruthy();
     },
   );
 

@@ -328,6 +328,8 @@ function DependencyGroup({
   );
 }
 
+type ClipboardCopyState = "idle" | "copied" | "unsupported" | "failed";
+
 function SourceSection({ block }: { readonly block: CatalogElement }) {
   return (
     <section
@@ -342,33 +344,98 @@ function SourceSection({ block }: { readonly block: CatalogElement }) {
       <ul className="mt-5 min-w-0 space-y-3">
         {block.files.map((file) => (
           <li className="min-w-0" key={file.path}>
-            <details
-              className="group min-w-0 overflow-hidden rounded-xl border border-[#dce5d9] bg-[#fbfcf9] dark:border-slate-800 dark:bg-slate-950"
-              open={file.path === "component.tsx"}
-            >
-              <summary className="flex min-h-12 min-w-0 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-[#17231d] marker:hidden focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#52705b] dark:text-slate-100 dark:focus-visible:outline-lime-300">
-                <span className="min-w-0 break-all font-mono">{file.path}</span>
-                <span className="shrink-0 rounded-full bg-[#eaf2e5] px-2 py-1 text-[0.65rem] uppercase tracking-[0.12em] text-[#52705b] dark:bg-slate-800 dark:text-lime-200">
-                  {file.kind}
-                </span>
-              </summary>
-              <div className="border-t border-[#dce5d9] p-4 dark:border-slate-800">
-                {file.kind === "asset" ? (
-                  <p className="text-sm leading-6 text-[#63786a] dark:text-slate-400">
-                    This asset is available to the installer but is not treated
-                    as executable source in the catalog.
-                  </p>
-                ) : (
-                  <pre className="max-w-full overflow-x-auto rounded-lg bg-[#17231d] p-4 text-xs leading-6 text-[#eaf2e5]">
-                    <code>{file.content ?? ""}</code>
-                  </pre>
-                )}
-              </div>
-            </details>
+            <SourceFile file={file} />
           </li>
         ))}
       </ul>
     </section>
+  );
+}
+
+function SourceFile({
+  file,
+}: {
+  readonly file: CatalogElement["files"][number];
+}) {
+  const [copyState, setCopyState] = useState<ClipboardCopyState>("idle");
+  const content = file.content;
+  const canCopy = file.kind !== "asset" && typeof content === "string";
+
+  async function copySource() {
+    if (!canCopy || typeof content !== "string") {
+      return;
+    }
+
+    const clipboard = globalThis.navigator?.clipboard;
+
+    if (clipboard?.writeText === undefined) {
+      setCopyState("unsupported");
+      return;
+    }
+
+    try {
+      await clipboard.writeText(content);
+      setCopyState("copied");
+    } catch {
+      setCopyState("failed");
+    }
+  }
+
+  const statusMessage =
+    copyState === "copied"
+      ? "Code copied."
+      : copyState === "unsupported"
+        ? "Clipboard access is not supported here; select the code to copy it."
+        : copyState === "failed"
+          ? "The code could not be copied; select it to copy manually."
+          : "";
+
+  return (
+    <details
+      className="group min-w-0 overflow-hidden rounded-xl border border-[#dce5d9] bg-[#fbfcf9] dark:border-slate-800 dark:bg-slate-950"
+      open={file.path === "component.tsx"}
+    >
+      <summary className="flex min-h-12 min-w-0 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-[#17231d] marker:hidden focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#52705b] dark:text-slate-100 dark:focus-visible:outline-lime-300">
+        <span className="min-w-0 break-all font-mono">{file.path}</span>
+        <span className="shrink-0 rounded-full bg-[#eaf2e5] px-2 py-1 text-[0.65rem] uppercase tracking-[0.12em] text-[#52705b] dark:bg-slate-800 dark:text-lime-200">
+          {file.kind}
+        </span>
+      </summary>
+      <div className="border-t border-[#dce5d9] p-4 dark:border-slate-800">
+        {file.kind === "asset" ? (
+          <p className="text-sm leading-6 text-[#63786a] dark:text-slate-400">
+            This asset is available to the installer but is not treated as
+            executable source in the catalog.
+          </p>
+        ) : (
+          <>
+            <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start">
+              <pre className="min-w-0 max-w-full flex-1 select-text overflow-x-auto rounded-lg bg-[#17231d] p-4 text-xs leading-6 text-[#eaf2e5]">
+                <code>{content ?? ""}</code>
+              </pre>
+              {canCopy ? (
+                <button
+                  aria-label={`Copy code from ${file.path}`}
+                  className="inline-flex min-h-11 w-full shrink-0 items-center justify-center rounded-md bg-[#d6ff57] px-4 py-2.5 text-sm font-bold text-[#12221c] transition-colors hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#d6ff57] motion-reduce:transition-none sm:w-auto"
+                  onClick={() => void copySource()}
+                  type="button"
+                >
+                  {copyState === "copied" ? "Copied" : "Copy code"}
+                </button>
+              ) : null}
+            </div>
+            {canCopy ? (
+              <p
+                aria-live="polite"
+                className="mt-3 min-h-5 text-sm text-[#63786a] dark:text-slate-400"
+              >
+                {statusMessage}
+              </p>
+            ) : null}
+          </>
+        )}
+      </div>
+    </details>
   );
 }
 

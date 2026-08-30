@@ -564,7 +564,7 @@ Objetivo: facilitar la exploración cuando el catálogo crezca.
 
 ## Spec 26 — Copy Code
 
-- [ ] Pendiente
+- [x] Implementada y archivada
 
 Permitir copiar directamente el código desde la web.
 
