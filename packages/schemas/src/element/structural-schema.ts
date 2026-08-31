@@ -48,7 +48,7 @@ function addDuplicateIssues(
   }
 }
 
-function createClassificationListSchema<T extends z.ZodType<string>>(
+export function createClassificationListSchema<T extends z.ZodType<string>>(
   itemSchema: T,
   label = "Classification list",
   minimumMessage?: string,

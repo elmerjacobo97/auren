@@ -182,6 +182,7 @@ test("Schemas manifest and TypeScript settings match the capability contract", (
     "src/element/structural-schema.ts",
     "src/taxonomy/schema.ts",
     "src/configuration/schema.ts",
+    "src/collection/schema.ts",
   ]);
   assert.equal(buildConfig.compilerOptions?.declaration, true);
   assert.equal(buildConfig.compilerOptions?.declarationMap, true);
@@ -192,6 +193,24 @@ test("Schemas manifest and TypeScript settings match the capability contract", (
     existsSync(path.join(root, "packages/schemas/src/index.ts")),
     false,
   );
+});
+
+test("Schemas collection public entrypoint resolves the built API", async () => {
+  const { collectionSchema } = await import("@auren/schemas/collection");
+  const collection = {
+    id: "saas-minimal",
+    name: "SaaS Minimal",
+    description: "A minimal SaaS collection.",
+    category: "marketing",
+    styles: ["minimal"],
+    industries: ["saas"],
+    features: ["responsive"],
+    frameworks: ["react"],
+    blocks: ["hero-001"],
+    metadata: {},
+  };
+
+  assert.deepEqual(collectionSchema.parse(collection), collection);
 });
 
 test("Schemas configuration public entrypoint resolves the built API", async () => {

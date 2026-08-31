@@ -27,6 +27,10 @@
     "./configuration": {
       "types": "./dist/configuration/schema.d.ts",
       "import": "./dist/configuration/schema.js"
+    },
+    "./collection": {
+      "types": "./dist/collection/schema.d.ts",
+      "import": "./dist/collection/schema.js"
     }
   }
 }

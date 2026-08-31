@@ -1,0 +1,24 @@
+import type { Collection } from "../schema.js";
+
+export const canonicalCollection: Collection = {
+  id: "saas-minimal",
+  name: "SaaS Minimal",
+  description:
+    "A minimal SaaS system with an ordered set of responsive marketing sections.",
+  category: "marketing",
+  styles: ["minimal"],
+  industries: ["saas", "ai"],
+  features: ["responsive", "mobile-first", "dark-mode"],
+  frameworks: ["react"],
+  blocks: ["navbar-001", "hero-001", "features-001", "footer-001"],
+  metadata: {
+    author: "Auren",
+    featured: true,
+    score: 4.5,
+    tags: ["landing-page", "conversion"],
+    viewport: {
+      minWidth: 320,
+      maxWidth: 1440,
+    },
+  },
+};

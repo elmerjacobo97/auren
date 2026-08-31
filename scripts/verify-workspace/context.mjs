@@ -84,6 +84,10 @@ export const expectedSchemasExports = {
     import: "./dist/configuration/schema.js",
     types: "./dist/configuration/schema.d.ts",
   },
+  "./collection": {
+    import: "./dist/collection/schema.js",
+    types: "./dist/collection/schema.d.ts",
+  },
 };
 export const expectedSchemasPaths = {
   "@/*": ["./src/*"],
@@ -91,6 +95,7 @@ export const expectedSchemasPaths = {
   "@auren/schemas/element": ["./src/element/structural-schema.ts"],
   "@auren/schemas/taxonomy": ["./src/taxonomy/schema.ts"],
   "@auren/schemas/configuration": ["./src/configuration/schema.ts"],
+  "@auren/schemas/collection": ["./src/collection/schema.ts"],
 };
 export const expectedRegistryExports = {
   ".": {
@@ -134,6 +139,7 @@ export const expectedCoreExports = {
 };
 export const expectedRegistryPaths = {
   "@auren/schemas/catalog": ["../schemas/src/catalog/element-schema.ts"],
+  "@auren/schemas/collection": ["../schemas/src/collection/schema.ts"],
   "@auren/schemas/element": ["../schemas/src/element/structural-schema.ts"],
   "@auren/schemas/taxonomy": ["../schemas/src/taxonomy/schema.ts"],
 };
@@ -179,6 +185,7 @@ export const expectedWorkspaceProfiles = {
       "src/element/structural-schema.ts",
       "src/taxonomy/schema.ts",
       "src/configuration/schema.ts",
+      "src/collection/schema.ts",
     ],
   },
   "packages/registry": {

@@ -189,7 +189,7 @@ export function validateSchemasManifest(manifest) {
     !hasExpectedExports
   ) {
     errors.push(
-      "packages/schemas/package.json: exports must expose only the catalog, element, taxonomy, and configuration capability entrypoints",
+      "packages/schemas/package.json: exports must expose only the catalog, element, taxonomy, configuration, and collection capability entrypoints",
     );
   }
 
@@ -231,10 +231,11 @@ export function validateSchemasManifest(manifest) {
       "src/element/structural-schema.ts",
       "src/taxonomy/schema.ts",
       "src/configuration/schema.ts",
+      "src/collection/schema.ts",
     ])
   ) {
     errors.push(
-      "packages/schemas/tsconfig.build.json: include must contain only the four public capability entrypoints",
+      "packages/schemas/tsconfig.build.json: include must contain only the five public capability entrypoints",
     );
   }
 }

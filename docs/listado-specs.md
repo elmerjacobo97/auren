@@ -574,7 +574,7 @@ Objetivo: mantener Auren usable incluso sin CLI.
 
 ## Spec 27 — Collections Model
 
-- [ ] Pendiente
+- [x] Implementada y completada
 
 Extender el Registry para soportar Collections.
 

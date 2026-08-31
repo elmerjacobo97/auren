@@ -13,6 +13,8 @@ import { catalogElementSchema } from "@auren/schemas/catalog";
 import type { CatalogElement } from "@auren/schemas/catalog";
 import { aurenConfigurationSchema } from "@auren/schemas/configuration";
 import type { AurenConfiguration } from "@auren/schemas/configuration";
+import { collectionSchema } from "@auren/schemas/collection";
+import type { Collection } from "@auren/schemas/collection";
 import {
   categorySchema,
   categoryValues,
@@ -33,9 +35,14 @@ const configurationResult = aurenConfigurationSchema.safeParse(input);
 const configuration: AurenConfiguration | undefined = configurationResult.success
   ? configurationResult.data
   : undefined;
+
+const collectionResult = collectionSchema.safeParse(input);
+const collection: Collection | undefined = collectionResult.success
+  ? collectionResult.data
+  : undefined;
 ```
 
-The package has four direct capability entrypoints:
+The package has five direct capability entrypoints:
 
 - `@auren/schemas/element` exports the structural element and reusable
   dependency, file, metadata, key, classification, path, and kind schemas,
@@ -46,6 +53,8 @@ The package has four direct capability entrypoints:
   `CatalogElement`.
 - `@auren/schemas/configuration` exports `aurenConfigurationSchema` and the
   inferred configuration types.
+- `@auren/schemas/collection` exports `collectionSchema`, the ordered member
+  list and classification schemas, and the inferred Collection types.
 
 There is intentionally no `@auren/schemas` root export and no barrel file.
 
@@ -57,7 +66,60 @@ Implementation and tests are colocated by capability:
 - `src/taxonomy` contains the official vocabulary source and dimension schemas.
 - `src/catalog` contains the composed taxonomy-aware element contract.
 - `src/configuration` contains the strict consumer `auren.json` contract.
+- `src/collection` contains the strict ordered Collection contract.
 - `src/element/fixtures` contains shared canonical examples.
+
+## Collection Contract
+
+A Collection describes a curated composition of blocks and contains exactly
+these fields:
+
+| Field | Shape and invariants |
+| --- | --- |
+| `id` | Lowercase kebab-case collection key. |
+| `name` | Non-empty name, at most 100 characters. |
+| `description` | Non-empty description, at most 1,000 characters. |
+| `category` | Official category taxonomy value. |
+| `styles` | Unique official style values; order is preserved. |
+| `industries` | Unique official industry values; order is preserved. |
+| `features` | Unique official feature values; order is preserved. |
+| `frameworks` | At least one unique official framework value. |
+| `blocks` | Non-empty, unique lowercase kebab-case block IDs in authored order. |
+| `metadata` | Recursively JSON-safe object. |
+
+Collections and blocks use separate ID namespaces. A collection may share a
+lexical ID with a block; consumers address the collection explicitly as
+`collection/<id>`. The schema does not add a synthetic block `type`, files, or
+dependencies. Those values are resolved from the referenced blocks later.
+
+Use the direct collection entrypoint for parsing and inferred types:
+
+```ts
+import {
+  collectionSchema,
+  type Collection,
+} from "@auren/schemas/collection";
+
+const collection: Collection = {
+  id: "saas-minimal",
+  name: "SaaS Minimal",
+  description: "A minimal SaaS collection.",
+  category: "marketing",
+  styles: ["minimal"],
+  industries: ["saas"],
+  features: ["responsive"],
+  frameworks: ["react"],
+  blocks: ["navbar-001", "hero-001"],
+  metadata: {},
+};
+
+const result = collectionSchema.safeParse(collection);
+```
+
+`blocks` is a composition boundary, not a set: parsing and Registry reads
+retain the declared member order. Schema validation checks IDs and taxonomies;
+Registry registration additionally checks that every member exists and supports
+every declared collection framework.
 
 ## Configuration Contract
 

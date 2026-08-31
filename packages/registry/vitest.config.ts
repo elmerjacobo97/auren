@@ -15,6 +15,10 @@ export default defineConfig({
         replacement: `${schemasSourceRoot}catalog/element-schema.ts`,
       },
       {
+        find: "@auren/schemas/collection",
+        replacement: `${schemasSourceRoot}collection/schema.ts`,
+      },
+      {
         find: "@auren/schemas/element",
         replacement: `${schemasSourceRoot}element/structural-schema.ts`,
       },

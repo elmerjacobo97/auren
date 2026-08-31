@@ -1,3 +1,4 @@
+import { type Collection, collectionSchema } from "@auren/schemas/collection";
 import {
   type CatalogElement,
   catalogElementSchema,
@@ -22,10 +23,51 @@ export type RegistryFilter = {
   metadata?: AurenMetadata;
 };
 
+export type CollectionFilter = {
+  category?: Category;
+  style?: Style;
+  industry?: Industry;
+  feature?: Feature;
+  framework?: Framework;
+  metadata?: AurenMetadata;
+};
+
 export class DuplicateElementError extends Error {
   constructor(readonly id: string) {
     super(`An element with ID "${id}" is already registered`);
     this.name = "DuplicateElementError";
+  }
+}
+
+export class DuplicateCollectionError extends Error {
+  constructor(readonly id: string) {
+    super(`A collection with ID "${id}" is already registered`);
+    this.name = "DuplicateCollectionError";
+  }
+}
+
+export class MissingCollectionBlockError extends Error {
+  constructor(
+    readonly collectionId: string,
+    readonly blockId: string,
+  ) {
+    super(
+      `Collection "${collectionId}" references unregistered block "${blockId}"`,
+    );
+    this.name = "MissingCollectionBlockError";
+  }
+}
+
+export class IncompatibleCollectionError extends Error {
+  constructor(
+    readonly collectionId: string,
+    readonly blockId: string,
+    readonly framework: string,
+  ) {
+    super(
+      `Collection "${collectionId}" requires framework "${framework}" unsupported by block "${blockId}"`,
+    );
+    this.name = "IncompatibleCollectionError";
   }
 }
 
@@ -57,6 +99,18 @@ function cloneElement(element: CatalogElement): CatalogElement {
     })),
     files: element.files.map((file) => ({ ...file })),
     metadata: cloneJsonValue(element.metadata),
+  };
+}
+
+function cloneCollection(collection: Collection): Collection {
+  return {
+    ...collection,
+    styles: [...collection.styles],
+    industries: [...collection.industries],
+    features: [...collection.features],
+    frameworks: [...collection.frameworks],
+    blocks: [...collection.blocks],
+    metadata: cloneJsonValue(collection.metadata),
   };
 }
 
@@ -128,9 +182,19 @@ export class LocalRegistry {
   private readonly industryIndex: ClassificationIndex = new Map();
   private readonly featureIndex: ClassificationIndex = new Map();
   private readonly frameworkIndex: ClassificationIndex = new Map();
+  private readonly collectionsById = new Map<string, Collection>();
+  private readonly collectionCategoryIndex: ClassificationIndex = new Map();
+  private readonly collectionStyleIndex: ClassificationIndex = new Map();
+  private readonly collectionIndustryIndex: ClassificationIndex = new Map();
+  private readonly collectionFeatureIndex: ClassificationIndex = new Map();
+  private readonly collectionFrameworkIndex: ClassificationIndex = new Map();
 
   get size(): number {
     return this.elementsById.size;
+  }
+
+  get collectionSize(): number {
+    return this.collectionsById.size;
   }
 
   register(input: unknown): CatalogElement {
@@ -163,10 +227,79 @@ export class LocalRegistry {
     return storedElements.map((element) => cloneElement(element));
   }
 
+  registerCollection(input: unknown): Collection {
+    return this.registerCollections([input])[0];
+  }
+
+  registerCollections(inputs: readonly unknown[]): readonly Collection[] {
+    const parsedCollections = inputs.map((input) =>
+      collectionSchema.parse(input),
+    );
+    const batchIds = new Set<string>();
+
+    for (const collection of parsedCollections) {
+      if (
+        this.collectionsById.has(collection.id) ||
+        batchIds.has(collection.id)
+      ) {
+        throw new DuplicateCollectionError(collection.id);
+      }
+
+      batchIds.add(collection.id);
+    }
+
+    for (const collection of parsedCollections) {
+      for (const blockId of collection.blocks) {
+        const block = this.elementsById.get(blockId);
+
+        if (block === undefined) {
+          throw new MissingCollectionBlockError(collection.id, blockId);
+        }
+
+        for (const framework of collection.frameworks) {
+          if (!block.frameworks.includes(framework)) {
+            throw new IncompatibleCollectionError(
+              collection.id,
+              blockId,
+              framework,
+            );
+          }
+        }
+      }
+    }
+
+    const storedCollections = parsedCollections.map((collection) =>
+      cloneCollection(collection),
+    );
+
+    for (const collection of storedCollections) {
+      this.collectionsById.set(collection.id, collection);
+      this.indexCollection(collection);
+    }
+
+    return storedCollections.map((collection) => cloneCollection(collection));
+  }
+
   getById(id: string): CatalogElement | undefined {
     const element = this.elementsById.get(id);
 
     return element ? cloneElement(element) : undefined;
+  }
+
+  getCollectionById(id: string): Collection | undefined {
+    const collection = this.collectionsById.get(id);
+
+    return collection ? cloneCollection(collection) : undefined;
+  }
+
+  hasCollection(id: string): boolean {
+    return this.collectionsById.has(id);
+  }
+
+  listCollections(): readonly Collection[] {
+    return Array.from(this.collectionsById.values(), (collection) =>
+      cloneCollection(collection),
+    );
   }
 
   has(id: string): boolean {
@@ -228,6 +361,54 @@ export class LocalRegistry {
     return results;
   }
 
+  queryCollections(filter: CollectionFilter = {}): readonly Collection[] {
+    let matchingIds: Set<string> | undefined;
+
+    const applyIndex = (
+      value: string | undefined,
+      index: ClassificationIndex,
+    ) => {
+      if (value === undefined) {
+        return true;
+      }
+
+      const indexedIds = index.get(value);
+
+      if (!indexedIds) {
+        return false;
+      }
+
+      matchingIds = matchingIds
+        ? new Set([...matchingIds].filter((id) => indexedIds.has(id)))
+        : new Set(indexedIds);
+
+      return matchingIds.size > 0;
+    };
+
+    if (
+      !applyIndex(filter.category, this.collectionCategoryIndex) ||
+      !applyIndex(filter.style, this.collectionStyleIndex) ||
+      !applyIndex(filter.industry, this.collectionIndustryIndex) ||
+      !applyIndex(filter.feature, this.collectionFeatureIndex) ||
+      !applyIndex(filter.framework, this.collectionFrameworkIndex)
+    ) {
+      return [];
+    }
+
+    const results: Collection[] = [];
+
+    for (const collection of this.collectionsById.values()) {
+      if (
+        (matchingIds === undefined || matchingIds.has(collection.id)) &&
+        metadataMatches(collection.metadata, filter.metadata)
+      ) {
+        results.push(cloneCollection(collection));
+      }
+    }
+
+    return results;
+  }
+
   private indexElement(element: CatalogElement) {
     addToIndex(this.categoryIndex, element.category, element.id);
     addToIndex(this.typeIndex, element.type, element.id);
@@ -246,6 +427,30 @@ export class LocalRegistry {
 
     for (const framework of element.frameworks) {
       addToIndex(this.frameworkIndex, framework, element.id);
+    }
+  }
+
+  private indexCollection(collection: Collection) {
+    addToIndex(
+      this.collectionCategoryIndex,
+      collection.category,
+      collection.id,
+    );
+
+    for (const style of collection.styles) {
+      addToIndex(this.collectionStyleIndex, style, collection.id);
+    }
+
+    for (const industry of collection.industries) {
+      addToIndex(this.collectionIndustryIndex, industry, collection.id);
+    }
+
+    for (const feature of collection.features) {
+      addToIndex(this.collectionFeatureIndex, feature, collection.id);
+    }
+
+    for (const framework of collection.frameworks) {
+      addToIndex(this.collectionFrameworkIndex, framework, collection.id);
     }
   }
 }
