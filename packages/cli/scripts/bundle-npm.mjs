@@ -17,7 +17,7 @@
  *                 @auren/schemas have their dist/ directories populated)
  */
 
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -32,7 +32,7 @@ const DIST_NPM_PKG = resolve(WORKSPACE_ROOT, "dist/npm-pkg");
 // ---------------------------------------------------------------------------
 
 const NPM_NAME = "auren";
-const NPM_VERSION = "0.1.0";
+const NPM_VERSION = "0.1.1";
 const NPM_DESCRIPTION =
   "Discover and install versioned UI components and block catalogs.";
 
@@ -168,6 +168,11 @@ await build({
   ],
   logLevel: "info",
 });
+
+const npmReadmeSrc = resolve(CLI_ROOT, "npm-readme.md");
+const npmReadmeDst = resolve(DIST_NPM_PKG, "README.md");
+await mkdir(DIST_NPM_PKG, { recursive: true });
+await writeFile(npmReadmeDst, await readFile(npmReadmeSrc, "utf8"));
 
 console.log("\nWriting companion package.json…");
 
