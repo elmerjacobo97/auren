@@ -1,7 +1,7 @@
 # Public Registry
 
 Auren publishes the generated Registry as a provider-neutral static document
-root. The CLI consumes `https://registry.auren.dev/` by default; deployments can
+root. The CLI consumes `https://auren.elmerjacobo.dev/` by default; deployments can
 serve the same document root from localhost, staging, or another host and pass
 that URL with `--registry-url` or `AUREN_REGISTRY_URL`.
 

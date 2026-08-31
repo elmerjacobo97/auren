@@ -158,8 +158,8 @@ describe("CatalogProvider", () => {
     expect(
       fetchImplementation.mock.calls.map(([input]) => String(input)),
     ).toEqual([
-      "https://registry.auren.dev/registry.json",
-      "https://registry.auren.dev/blocks/hero-001.json",
+      "https://auren.elmerjacobo.dev/registry.json",
+      "https://auren.elmerjacobo.dev/blocks/hero-001.json",
     ]);
   });
 
@@ -210,7 +210,7 @@ describe("CatalogProvider", () => {
     expect(fetchImplementation).toHaveBeenCalledTimes(1);
     expect(
       fetchImplementation.mock.calls.map(([input]) => String(input)),
-    ).toEqual(["https://registry.auren.dev/registry.json"]);
+    ).toEqual(["https://auren.elmerjacobo.dev/registry.json"]);
   });
 
   it("retries through the provider and replaces the error state", async () => {

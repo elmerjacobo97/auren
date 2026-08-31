@@ -8,3 +8,4 @@ minimumReleaseAgeExclude:
   - happy-dom@20.12.0
 allowBuilds:
   es5-ext: false
+  esbuild: true

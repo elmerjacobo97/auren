@@ -56,7 +56,7 @@ pnpm dev
 ### CLI Registry source
 
 `auren info`, `auren search`, and `auren add` use the public Registry document root
-`https://registry.auren.dev/` by default. Override it per command or process:
+`https://auren.elmerjacobo.dev/` by default. Override it per command or process:
 
 ```bash
 auren search hero --registry-url https://staging.example.test/auren/
@@ -80,7 +80,7 @@ single block with its plain ID or install an authored Collection explicitly:
 
 ```bash
 auren add hero-001
-auren add collection/saas-minimal --registry-url https://registry.auren.dev/
+auren add collection/saas-minimal
 ```
 
 The Collection detail preserves member order; Core then deduplicates shared

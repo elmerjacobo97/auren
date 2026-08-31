@@ -47,7 +47,7 @@ describe("catalog Registry URL", () => {
   it("uses the production root and resolves registry.json", () => {
     expect(resolveRegistryDocumentRoot()).toBe(DEFAULT_REGISTRY_URL);
     expect(resolveRegistryIndexUrl(DEFAULT_REGISTRY_URL)).toBe(
-      "https://registry.auren.dev/registry.json",
+      "https://auren.elmerjacobo.dev/registry.json",
     );
   });
 
