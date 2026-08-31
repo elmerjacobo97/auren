@@ -6,6 +6,8 @@ import type {
 import type { ProjectDetection } from "@auren/core/project";
 import type { InstallableCatalogSource } from "../../catalog/catalog-source.js";
 import type { CatalogElement } from "@auren/schemas/catalog";
+import type { Collection } from "@auren/schemas/collection";
+import type { AddSelector } from "./add-selector.js";
 
 export interface AddInstallationPlanOptions {
   readonly projectDir: string;
@@ -27,6 +29,11 @@ export type ShadcnDependency = {
   readonly name: string;
 };
 
+type CollectionProjectDependencyResolution = ProjectDependencyResolution & {
+  readonly collection: Collection;
+  readonly members: readonly CatalogElement[];
+};
+
 export interface ShadcnRequirementPath {
   readonly name: string;
   readonly path: string;
@@ -42,13 +49,18 @@ export interface ShadcnRequirementResolution {
 
 export interface AddInstallationPlan {
   readonly requestedId: string;
+  readonly selector: AddSelector;
+  readonly collection: Collection | null;
+  readonly members: readonly CatalogElement[];
   readonly projectDir: string;
   readonly configuration: AurenConfiguration;
   readonly detection: ProjectDetection;
   readonly blocks: readonly CatalogElement[];
   readonly packages: readonly PackageDependency[];
   readonly shadcn: readonly ShadcnDependency[];
-  readonly dependencyResolution: ProjectDependencyResolution;
+  readonly dependencyResolution:
+    | ProjectDependencyResolution
+    | CollectionProjectDependencyResolution;
   readonly shadcnResolution: ShadcnRequirementResolution | null;
   readonly files: readonly AddPlannedFile[];
   readonly warnings: readonly string[];

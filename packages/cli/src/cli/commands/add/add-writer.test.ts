@@ -84,6 +84,9 @@ function createPlan(
 
   return {
     requestedId: "hero-001",
+    selector: { kind: "block", id: "hero-001" },
+    collection: null,
+    members: [],
     projectDir,
     configuration: {
       framework: "react",

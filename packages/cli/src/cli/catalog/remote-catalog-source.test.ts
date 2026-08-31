@@ -14,6 +14,7 @@ import {
   resolveRegistryUrl,
 } from "./remote-catalog-source.js";
 import type { CatalogElement } from "@auren/schemas/catalog";
+import type { Collection } from "@auren/schemas/collection";
 
 const indexElement: CatalogElement = {
   id: "hero-001",
@@ -47,6 +48,19 @@ const detailElement: CatalogElement = {
       content: Buffer.from("preview").toString("base64"),
     },
   ],
+};
+
+const indexCollection: Collection = {
+  id: "saas-minimal",
+  name: "SaaS Minimal",
+  description: "A minimal SaaS collection.",
+  category: "marketing",
+  styles: ["minimal"],
+  industries: ["saas"],
+  features: ["responsive"],
+  frameworks: ["react"],
+  blocks: ["hero-001"],
+  metadata: { featured: true },
 };
 
 const fixtureResponses: RemoteCatalogResponse[] = [];
@@ -228,6 +242,129 @@ describe("remote Registry index loading", () => {
     await expect(invalidSource.list()).rejects.toThrow(
       /failed @auren\/schemas\/catalog validation/,
     );
+  });
+});
+
+describe("remote Registry Collection loading", () => {
+  it("loads Collection metadata from the index and details lazily", async () => {
+    const { fetch, calls } = createFetch(async (url) => {
+      if (url.endsWith("/registry.json")) {
+        return jsonResponse({
+          ...indexEnvelope(indexElement),
+          collections: [indexCollection],
+        });
+      }
+
+      expect(url).toBe(
+        "https://registry.example.test/collections/saas-minimal.json",
+      );
+      return jsonResponse(indexCollection);
+    });
+    const source = createRemoteCatalogSource({
+      registryUrl: "https://registry.example.test",
+      fetch,
+    });
+
+    await expect(source.getCollectionById("saas-minimal")).resolves.toEqual(
+      indexCollection,
+    );
+    expect(calls).toEqual(["https://registry.example.test/registry.json"]);
+
+    const record = await source.getInstallableCollectionById("saas-minimal");
+    await expect(record?.loadCollection()).resolves.toEqual(indexCollection);
+    await expect(record?.loadCollection()).resolves.toEqual(indexCollection);
+    expect(calls).toEqual([
+      "https://registry.example.test/registry.json",
+      "https://registry.example.test/collections/saas-minimal.json",
+    ]);
+  });
+
+  it.each([
+    ["ID mismatch", { ...indexCollection, id: "other-collection" }, /ID is/],
+    [
+      "metadata drift",
+      { ...indexCollection, name: "Different" },
+      /field "name" differs/,
+    ],
+    [
+      "forbidden payload",
+      { ...indexCollection, files: [] },
+      /failed @auren\/schemas\/collection validation/,
+    ],
+  ] as const)(
+    "rejects Collection detail %s before exposing it",
+    async (_, detail, message) => {
+      const { fetch } = createFetch(async (url) =>
+        jsonResponse(
+          url.endsWith("/registry.json")
+            ? { ...indexEnvelope(indexElement), collections: [indexCollection] }
+            : detail,
+        ),
+      );
+      const source = createRemoteCatalogSource({
+        registryUrl: "https://registry.example.test",
+        fetch,
+      });
+      const record = await source.getInstallableCollectionById("saas-minimal");
+
+      await expect(record?.loadCollection()).rejects.toMatchObject({
+        name: expect.stringMatching(/RemoteCatalog/),
+        message: expect.stringMatching(message),
+      });
+    },
+  );
+
+  it("evicts failed Collection detail requests so retries can succeed", async () => {
+    let attempts = 0;
+    const { fetch, calls } = createFetch(async (url) => {
+      if (url.endsWith("/registry.json")) {
+        return jsonResponse({
+          ...indexEnvelope(indexElement),
+          collections: [indexCollection],
+        });
+      }
+
+      attempts += 1;
+      if (attempts === 1) {
+        return jsonResponse({ error: "temporary" }, { status: 503 });
+      }
+
+      return jsonResponse(indexCollection);
+    });
+    const source = createRemoteCatalogSource({
+      registryUrl: "https://registry.example.test",
+      fetch,
+    });
+    const record = await source.getInstallableCollectionById("saas-minimal");
+
+    await expect(record?.loadCollection()).rejects.toBeInstanceOf(
+      RemoteCatalogHttpError,
+    );
+    await expect(record?.loadCollection()).resolves.toEqual(indexCollection);
+    expect(calls).toEqual([
+      "https://registry.example.test/registry.json",
+      "https://registry.example.test/collections/saas-minimal.json",
+      "https://registry.example.test/collections/saas-minimal.json",
+    ]);
+  });
+
+  it("reports Collection detail validation failures with a dedicated error", async () => {
+    const { fetch } = createFetch(async (url) =>
+      jsonResponse(
+        url.endsWith("/registry.json")
+          ? { ...indexEnvelope(indexElement), collections: [indexCollection] }
+          : { ...indexCollection, name: "Drifted" },
+      ),
+    );
+    const source = createRemoteCatalogSource({
+      registryUrl: "https://registry.example.test",
+      fetch,
+    });
+    const record = await source.getInstallableCollectionById("saas-minimal");
+
+    await expect(record?.loadCollection()).rejects.toMatchObject({
+      name: "RemoteCatalogCollectionDetailError",
+    });
   });
 });
 

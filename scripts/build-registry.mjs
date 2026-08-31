@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { RegistryBuildError } from "./registry-build/errors.mjs";
 import {
   defaultBlocksRoot,
+  defaultCollectionsRoot,
   defaultOutputRoot,
   parseBuildArguments,
 } from "./registry-build/paths.mjs";
@@ -32,7 +33,7 @@ export async function main(argumentsList = process.argv.slice(2)) {
       : result.outputRoot;
 
     console.log(
-      `Registry build completed: ${result.blockCount} blocks written to ${displayOutput}`,
+      `Registry build completed: ${result.blockCount} blocks and ${result.collectionCount} collections written to ${displayOutput}`,
     );
     return true;
   } catch (error) {
@@ -59,9 +60,10 @@ function printHelp() {
   console.log(`Usage: node scripts/build-registry.mjs [options]
 
 Options:
-  --blocks-root <path>  Source catalog root (default: ${defaultBlocksRoot})
-  --output-root <path>  Generated Registry root (default: ${defaultOutputRoot})
-  -h, --help            Show this help`);
+  --blocks-root <path>       Source catalog root (default: ${defaultBlocksRoot})
+  --collections-root <path> Collection source root (default: ${defaultCollectionsRoot})
+  --output-root <path>       Generated Registry root (default: ${defaultOutputRoot})
+  -h, --help                 Show this help`);
 }
 
 const isMainModule =

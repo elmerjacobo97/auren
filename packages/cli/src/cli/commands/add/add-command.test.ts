@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PackageInstaller } from "./package-installer.js";
 import {
   cleanupFixtures,
+  createCollectionRecord,
   createProject,
   createRecord,
   createSource,
@@ -24,7 +25,7 @@ describe("auren add command", () => {
     );
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain("Usage: auren add <id>");
+    expect(result.stdout).toContain("Usage: auren add <selector>");
     expect(result.stdout).toContain("--force");
     expect(result.stderr).toBe("");
     expect(source.listInstallable).not.toHaveBeenCalled();
@@ -262,6 +263,89 @@ describe("auren add command", () => {
       "export function Hero() { return null; }\n",
     );
     await expect(readFile(unrelated, "utf8")).resolves.toBe("untouched\n");
+  });
+
+  it("installs a Collection in authored-member and dependency-safe order", async () => {
+    const project = await createProject();
+    const dependency = {
+      ...element,
+      id: "shared-001",
+      files: [
+        {
+          path: "component.tsx" as const,
+          kind: "component" as const,
+          content: "export function Shared() { return null; }\n",
+        },
+      ],
+    };
+    const member = {
+      ...element,
+      id: "hero-002",
+      dependencies: [{ kind: "auren" as const, id: "shared-001" }],
+    };
+    const collection = {
+      id: "saas-minimal",
+      name: "SaaS Minimal",
+      description: "A minimal SaaS collection.",
+      category: "marketing" as const,
+      styles: ["minimal" as const],
+      industries: ["saas" as const],
+      features: ["responsive" as const],
+      frameworks: ["react" as const],
+      blocks: ["hero-002", "shared-001"],
+      metadata: {},
+    };
+    const source = createSource(
+      [createRecord(member), createRecord(dependency)],
+      [createCollectionRecord(collection)],
+    );
+
+    const result = await invoke(
+      project,
+      ["add", "collection/saas-minimal"],
+      source,
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toContain("Added collection/saas-minimal");
+    expect(result.stdout).toContain("Collection: saas-minimal");
+    expect(result.stdout).toContain(
+      "Authored members:\n- hero-002\n- shared-001",
+    );
+    expect(result.stdout).toContain(
+      "Resolved blocks:\n- shared-001\n- hero-002",
+    );
+    await expect(
+      readFile(
+        path.join(project, "src/components/auren/shared-001/component.tsx"),
+        "utf8",
+      ),
+    ).resolves.toContain("Shared");
+    await expect(
+      readFile(
+        path.join(project, "src/components/auren/hero-002/component.tsx"),
+        "utf8",
+      ),
+    ).resolves.toContain("Hero");
+  });
+
+  it("rejects malformed Collection selectors before source access", async () => {
+    const source = createSource();
+
+    for (const selector of ["collection/", "collection/a/b", "hero_001"]) {
+      const result = await invoke(
+        "/directory/without/a/project",
+        ["add", selector],
+        source,
+      );
+
+      expect(result.status).toBe(1);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain("Invalid add selector");
+    }
+
+    expect(source.listInstallable).not.toHaveBeenCalled();
   });
 
   it("reports unknown elements as concise stderr failures", async () => {

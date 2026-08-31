@@ -5,13 +5,21 @@ import {
   type AurenConfiguration,
 } from "@auren/core/configuration";
 import { validateCompatibility } from "@auren/core/compatibility";
-import { resolveProjectDependencies } from "@auren/core/dependencies";
+import {
+  resolveProjectCollectionDependencies,
+  resolveProjectDependencies,
+} from "@auren/core/dependencies";
 import { MissingBlockFileError } from "@auren/core/load/files";
 import type { ResolvedBlockFile } from "@auren/core/load/files";
 import { detectProject, type ProjectDetection } from "@auren/core/project";
-import { resolveBlock } from "@auren/core/resolve";
+import {
+  resolveBlock,
+  resolveCollection,
+  UnknownCollectionError,
+} from "@auren/core/resolve";
 import { LocalRegistry } from "@auren/registry";
 import type { CatalogElement } from "@auren/schemas/catalog";
+import type { Collection } from "@auren/schemas/collection";
 import type { Feature } from "@auren/schemas/taxonomy";
 import {
   InvalidInstallAliasError,
@@ -31,6 +39,7 @@ import type {
   AddInstallationPlanOptions,
   AddPlannedFile,
 } from "./add-types.js";
+import { parseAddSelector } from "./add-selector.js";
 import { resolveShadcnRequirements } from "./shadcn-resolver.js";
 import { rewriteShadcnImports } from "./shadcn-rewriter.js";
 
@@ -47,6 +56,7 @@ export async function createAddInstallationPlan({
   force,
   source,
 }: AddInstallationPlanOptions): Promise<AddInstallationPlan> {
+  const selector = parseAddSelector(id);
   const configuration = await readAurenConfig(projectDir);
 
   if (configuration === null) {
@@ -64,9 +74,34 @@ export async function createAddInstallationPlan({
   const registry = new LocalRegistry();
   registry.registerMany(records.map(({ element }) => element));
 
-  const resolved = resolveBlock(registry, id);
+  let collection: Collection | null = null;
+  let members: readonly CatalogElement[] = [];
+  let resolvedBlocks: readonly CatalogElement[];
 
-  for (const element of resolved.blocks) {
+  if (selector.kind === "collection") {
+    const getInstallableCollectionById = source.getInstallableCollectionById;
+
+    if (getInstallableCollectionById === undefined) {
+      throw new MissingInstallableRecordError(`collection/${selector.id}`);
+    }
+
+    const collectionRecord = await getInstallableCollectionById(selector.id);
+
+    if (collectionRecord === undefined) {
+      throw new UnknownCollectionError(selector.id);
+    }
+
+    const detail = await collectionRecord.loadCollection();
+    registry.registerCollection(detail);
+    const resolved = resolveCollection(registry, selector.id);
+    collection = resolved.collection;
+    members = resolved.members;
+    resolvedBlocks = resolved.blocks;
+  } else {
+    resolvedBlocks = resolveBlock(registry, selector.id).blocks;
+  }
+
+  for (const element of resolvedBlocks) {
     const compatibility = validateCompatibility(element, {
       frameworks: [configuration.framework],
       features: requiredFeatures,
@@ -84,11 +119,18 @@ export async function createAddInstallationPlan({
     }
   }
 
-  const dependencyResolution = resolveProjectDependencies(
-    registry,
-    id,
-    detection.dependencies,
-  );
+  const dependencyResolution =
+    selector.kind === "collection"
+      ? resolveProjectCollectionDependencies(
+          registry,
+          selector.id,
+          detection.dependencies,
+        )
+      : resolveProjectDependencies(
+          registry,
+          selector.id,
+          detection.dependencies,
+        );
   const shadcn =
     "shadcn" in dependencyResolution
       ? (dependencyResolution.shadcn as readonly PlannedShadcnDependency[])
@@ -114,7 +156,8 @@ export async function createAddInstallationPlan({
 
   const missingRequirements = [
     ...dependencyResolution.missing.map(
-      ({ name, version }) => `${name}@${version}`,
+      (dependency: { name: string; version: string }) =>
+        `${dependency.name}@${dependency.version}`,
     ),
     ...(shadcnResolution?.missing.map((name) => `shadcn/${name}`) ?? []),
   ];
@@ -123,7 +166,7 @@ export async function createAddInstallationPlan({
   const files: AddPlannedFile[] = [];
   const targets = new Set<string>();
 
-  for (const element of resolved.blocks) {
+  for (const element of resolvedBlocks) {
     const record = recordsById.get(element.id);
 
     if (record === undefined) {
@@ -205,10 +248,13 @@ export async function createAddInstallationPlan({
 
   return {
     requestedId: id,
+    selector,
+    collection,
+    members,
     projectDir: detection.projectDir,
     configuration,
     detection,
-    blocks: resolved.blocks,
+    blocks: resolvedBlocks,
     packages: dependencyResolution.packages,
     shadcn,
     dependencyResolution,

@@ -44,6 +44,7 @@ export async function publishRegistry({
 
   return {
     blockCount: registry.details.length,
+    collectionCount: registry.collections?.length ?? 0,
     registryRoot: roots.registryRoot,
     outputRoot: roots.outputRoot,
   };
@@ -103,6 +104,7 @@ async function stageAndReplaceOutput({ outputRoot, registry, existingOutput }) {
     await writeStagedRegistry(stagingRoot, registry);
     await loadPublicRegistry(stagingRoot, {
       catalogElementSchema: registry.catalogElementSchema,
+      collectionSchema: registry.collectionSchema,
     });
     await replaceOutputDirectory({
       stagingRoot,
@@ -120,10 +122,22 @@ async function stageAndReplaceOutput({ outputRoot, registry, existingOutput }) {
 async function writeStagedRegistry(stagingRoot, registry) {
   const blocksRoot = path.join(stagingRoot, "blocks");
   await mkdir(blocksRoot);
+
+  if (registry.collections !== undefined) {
+    await mkdir(path.join(stagingRoot, "collections"));
+  }
+
   await writeFile(path.join(stagingRoot, "registry.json"), registry.indexBytes);
 
   for (const entry of registry.details) {
     await writeFile(path.join(blocksRoot, entry.fileName), entry.bytes);
+  }
+
+  for (const entry of registry.collections ?? []) {
+    await writeFile(
+      path.join(stagingRoot, "collections", entry.fileName),
+      entry.bytes,
+    );
   }
 }
 

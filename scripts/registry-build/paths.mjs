@@ -7,6 +7,7 @@ export const projectRoot = path.resolve(
   "../..",
 );
 export const defaultBlocksRoot = path.resolve(projectRoot, "blocks");
+export const defaultCollectionsRoot = path.resolve(projectRoot, "collections");
 export const defaultOutputRoot = path.resolve(projectRoot, "dist/registry");
 
 export function parseBuildArguments(argumentsList) {
@@ -24,15 +25,24 @@ export function parseBuildArguments(argumentsList) {
       continue;
     }
 
-    if (argument === "--blocks-root" || argument === "--output-root") {
+    if (
+      argument === "--blocks-root" ||
+      argument === "--collections-root" ||
+      argument === "--output-root"
+    ) {
       const value = argumentsList[index + 1];
 
       if (!value || value.startsWith("--")) {
         throw new RegistryBuildError(`${argument} requires a directory path`);
       }
 
-      options[argument === "--blocks-root" ? "blocksRoot" : "outputRoot"] =
-        value;
+      const optionName =
+        argument === "--blocks-root"
+          ? "blocksRoot"
+          : argument === "--collections-root"
+            ? "collectionsRoot"
+            : "outputRoot";
+      options[optionName] = value;
       index += 1;
       continue;
     }
@@ -44,8 +54,16 @@ export function parseBuildArguments(argumentsList) {
 }
 
 export function resolveBuildRoots(options = {}) {
+  const blocksRoot = path.resolve(options.blocksRoot ?? defaultBlocksRoot);
+
   return {
-    blocksRoot: path.resolve(options.blocksRoot ?? defaultBlocksRoot),
+    blocksRoot,
+    collectionsRoot: path.resolve(
+      options.collectionsRoot ??
+        (options.blocksRoot === undefined
+          ? defaultCollectionsRoot
+          : path.join(path.dirname(blocksRoot), "collections")),
+    ),
     outputRoot: path.resolve(options.outputRoot ?? defaultOutputRoot),
   };
 }

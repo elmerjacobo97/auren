@@ -61,14 +61,14 @@ export function validateRootManifest() {
 
   const expectedScripts = {
     check:
-      "pnpm --filter @auren/schemas build && node scripts/verify-workspace.mjs && node scripts/verify-blocks.mjs",
+      "pnpm --filter @auren/schemas build && node scripts/verify-workspace.mjs && node scripts/verify-blocks.mjs && node scripts/verify-collections.mjs",
     build: "turbo run build && pnpm registry:publish",
     dev: "turbo run dev",
     "registry:build":
       "pnpm --filter @auren/schemas build && node scripts/build-registry.mjs",
     "registry:publish":
       "pnpm registry:build && node scripts/publish-registry.mjs",
-    test: "pnpm --filter @auren/schemas build && node --test scripts/verify-blocks.test.mjs scripts/verify-workspace.test.mjs scripts/registry-build.test.mjs scripts/registry-publish.test.mjs && turbo run test",
+    test: "pnpm --filter @auren/schemas build && node --test scripts/verify-blocks.test.mjs scripts/verify-collections.test.mjs scripts/verify-workspace.test.mjs scripts/registry-build.test.mjs scripts/registry-publish.test.mjs && turbo run test",
     typecheck: "turbo run typecheck",
     lint: "biome lint .",
     "lint:fix": "biome lint --write .",

@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { collectionSchema } from "@auren/schemas/collection";
 import { expectedBlockCategories } from "../verify-workspace.mjs";
+import { verifyCollections } from "../verify-collections.mjs";
 import { RegistryBuildError } from "./errors.mjs";
 
 export const catalogFields = Object.freeze([
@@ -18,8 +20,22 @@ export const catalogFields = Object.freeze([
   "metadata",
 ]);
 
+export const collectionFields = Object.freeze([
+  "id",
+  "name",
+  "description",
+  "category",
+  "styles",
+  "industries",
+  "features",
+  "frameworks",
+  "blocks",
+  "metadata",
+]);
+
 export async function loadSourceCatalog({
   blocksRoot,
+  collectionsRoot = path.join(path.dirname(blocksRoot), "collections"),
   categoryRoots = expectedBlockCategories,
 }) {
   const catalogElementSchema = await loadCatalogElementSchema();
@@ -73,12 +89,32 @@ export async function loadSourceCatalog({
   );
   validateCatalogDependencies(elements);
 
-  return { catalogElementSchema, elements };
+  const collectionVerification = verifyCollections({
+    collectionsRoot,
+    categoryRoots,
+    blocks: elements.map(({ element }) => element),
+    includeInventory: true,
+  });
+
+  if (collectionVerification.errors.length > 0) {
+    throw new RegistryBuildError(
+      "source Collection verification failed",
+      collectionVerification.errors,
+    );
+  }
+
+  return {
+    catalogElementSchema,
+    collectionSchema,
+    elements,
+    collections: collectionVerification.collections ?? [],
+  };
 }
 
 export async function createCatalogArtifacts({
   catalogElementSchema,
   elements,
+  collections = [],
 }) {
   const entries = [];
 
@@ -138,12 +174,21 @@ export async function createCatalogArtifacts({
 
   entries.sort((left, right) => compareStrings(left.id, right.id));
 
+  const collectionEntries = collections
+    .map(({ collection }) => ({
+      id: collection.id,
+      detail: projectCollection(collection),
+    }))
+    .sort((left, right) => compareStrings(left.id, right.id));
+
   const artifacts = {
     index: {
       schemaVersion: 1,
       blocks: entries.map(({ index }) => index),
+      collections: collectionEntries.map(({ detail }) => detail),
     },
     entries,
+    collections: collectionEntries,
   };
 
   validateGeneratedArtifacts({
@@ -151,6 +196,8 @@ export async function createCatalogArtifacts({
     index: artifacts.index,
     entries: artifacts.entries,
     expectedIds: entries.map(({ id }) => id),
+    collectionEntries: artifacts.collections,
+    expectedCollectionIds: collectionEntries.map(({ id }) => id),
   });
 
   return artifacts;
@@ -161,6 +208,9 @@ export function validateGeneratedArtifacts({
   index,
   entries,
   expectedIds,
+  collectionSchema: collectionSchemaContract = collectionSchema,
+  collectionEntries,
+  expectedCollectionIds = collectionEntries?.map(({ id }) => id),
 }) {
   if (
     index?.schemaVersion !== 1 ||
@@ -170,6 +220,18 @@ export function validateGeneratedArtifacts({
     throw new RegistryBuildError(
       "generated Registry index has an invalid envelope",
       ["expected { schemaVersion: 1, blocks: [] }"],
+    );
+  }
+
+  const hasCollectionIndex = Object.hasOwn(index, "collections");
+
+  if (
+    collectionEntries !== undefined &&
+    (!hasCollectionIndex || !Array.isArray(index.collections))
+  ) {
+    throw new RegistryBuildError(
+      "generated Registry index has an invalid Collection envelope",
+      ["expected a collections array for the collection detail tree"],
     );
   }
 
@@ -289,6 +351,113 @@ export function validateGeneratedArtifacts({
       );
     }
   }
+
+  if (collectionEntries !== undefined) {
+    const sortedExpectedCollectionIds = [...expectedCollectionIds].sort(
+      compareStrings,
+    );
+    const collectionEntryIds = collectionEntries.map(({ id }) => id);
+
+    if (
+      new Set(sortedExpectedCollectionIds).size !==
+        sortedExpectedCollectionIds.length ||
+      collectionEntryIds.length !== sortedExpectedCollectionIds.length ||
+      !collectionEntryIds.every(
+        (id, indexPosition) =>
+          id === sortedExpectedCollectionIds[indexPosition],
+      )
+    ) {
+      throw new RegistryBuildError(
+        "generated Collection identities do not match the source catalog",
+        [
+          `expected Collection detail ids: ${sortedExpectedCollectionIds.join(", ")}`,
+          `actual Collection detail ids: ${collectionEntryIds.join(", ")}`,
+        ],
+      );
+    }
+
+    const indexCollectionIds = index.collections.map(
+      (collection) => collection?.id,
+    );
+
+    if (
+      indexCollectionIds.length !== sortedExpectedCollectionIds.length ||
+      !indexCollectionIds.every(
+        (id, indexPosition) =>
+          id === sortedExpectedCollectionIds[indexPosition],
+      )
+    ) {
+      throw new RegistryBuildError(
+        "generated Registry Collection identities do not match the source catalog",
+        [
+          `expected Collection index ids: ${sortedExpectedCollectionIds.join(", ")}`,
+          `actual Collection index ids: ${indexCollectionIds.join(", ")}`,
+        ],
+      );
+    }
+
+    const indexByCollectionId = new Map();
+
+    for (const [position, collection] of index.collections.entries()) {
+      assertSchema(
+        collectionSchemaContract,
+        collection,
+        `generated Registry index Collection ${position}`,
+        "collection",
+      );
+      assertNoCollectionInstallationFields(
+        collection,
+        `generated Registry index Collection ${position}`,
+      );
+      indexByCollectionId.set(collection.id, collection);
+    }
+
+    for (const entry of collectionEntries) {
+      const indexCollection = indexByCollectionId.get(entry.id);
+
+      if (!indexCollection) {
+        throw new RegistryBuildError(
+          "generated Registry is missing a Collection index entry",
+          [`missing Collection index entry for ${entry.id}`],
+        );
+      }
+
+      assertSchema(
+        collectionSchemaContract,
+        entry.detail,
+        `generated Collection detail payload ${entry.id}`,
+        "collection",
+      );
+      assertNoCollectionInstallationFields(
+        entry.detail,
+        `generated Collection detail payload ${entry.id}`,
+      );
+
+      for (const field of collectionFields) {
+        if (!sameJsonValue(indexCollection[field], entry.detail[field])) {
+          throw new RegistryBuildError(
+            "generated Collection index and detail metadata differ",
+            [`${entry.id}: field ${field}`],
+          );
+        }
+      }
+    }
+  }
+}
+
+function projectCollection(collection) {
+  return {
+    id: collection.id,
+    name: collection.name,
+    description: collection.description,
+    category: collection.category,
+    styles: [...collection.styles],
+    industries: [...collection.industries],
+    features: [...collection.features],
+    frameworks: [...collection.frameworks],
+    blocks: [...collection.blocks],
+    metadata: sortJsonValue(collection.metadata),
+  };
 }
 
 function projectCatalogElement(element, files) {
@@ -421,14 +590,24 @@ async function loadCatalogElementSchema() {
   }
 }
 
-function assertSchema(schema, value, label) {
+function assertSchema(schema, value, label, schemaName = "catalog") {
   const result = schema.safeParse(value);
 
   if (!result.success) {
     throw new RegistryBuildError(
-      `${label} failed @auren/schemas/catalog validation`,
+      `${label} failed @auren/schemas/${schemaName} validation`,
       formatSchemaIssues(result.error.issues),
     );
+  }
+}
+
+function assertNoCollectionInstallationFields(collection, label) {
+  for (const field of ["target", "content", "files"]) {
+    if (Object.hasOwn(collection, field)) {
+      throw new RegistryBuildError(
+        `${label} contains a forbidden ${field} field`,
+      );
+    }
   }
 }
 

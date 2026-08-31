@@ -2,6 +2,15 @@ function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+export class InvalidAddSelectorError extends Error {
+  constructor(readonly selector: string) {
+    super(
+      `Invalid add selector "${selector}"; expected a block ID or collection/<collection-id>`,
+    );
+    this.name = "InvalidAddSelectorError";
+  }
+}
+
 export class MissingAurenConfigurationError extends Error {
   constructor() {
     super(

@@ -3,7 +3,9 @@ import {
   catalogElementSchema,
   type CatalogElement,
 } from "@auren/schemas/catalog";
+import { collectionSchema, type Collection } from "@auren/schemas/collection";
 import {
+  RemoteCatalogCollectionDetailError,
   RemoteCatalogDetailError,
   RemoteCatalogError,
   RemoteCatalogPayloadError,
@@ -18,12 +20,17 @@ export interface LoadIndexOptions {
   readonly timeoutMs: number;
 }
 
+export type LoadedCatalogIndex = {
+  readonly blocks: ReadonlyMap<string, CatalogElement>;
+  readonly collections: ReadonlyMap<string, Collection>;
+};
+
 export async function loadIndex({
   fetchImplementation,
   indexResource,
   indexUrl,
   timeoutMs,
-}: LoadIndexOptions): Promise<ReadonlyMap<string, CatalogElement>> {
+}: LoadIndexOptions): Promise<LoadedCatalogIndex> {
   const payload = await requestJson({
     fetchImplementation,
     resource: indexResource,
@@ -67,8 +74,47 @@ export async function loadIndex({
     elements.push(element);
   }
 
+  const collections: Collection[] = [];
+  const collectionIds = new Set<string>();
+  const collectionPayload = payload.collections;
+
+  if (collectionPayload !== undefined && !Array.isArray(collectionPayload)) {
+    throw new RemoteCatalogPayloadError(
+      indexResource,
+      indexUrl,
+      "the collections field must be an array when present",
+    );
+  }
+
+  for (const [position, candidate] of (collectionPayload ?? []).entries()) {
+    const collection = parseCollection(
+      candidate,
+      indexResource,
+      indexUrl,
+      position,
+    );
+
+    if (collectionIds.has(collection.id)) {
+      throw new RemoteCatalogPayloadError(
+        indexResource,
+        indexUrl,
+        `contains duplicate Collection ID "${collection.id}"`,
+      );
+    }
+
+    assertMetadataOnlyCollection(collection, indexResource, indexUrl);
+    collectionIds.add(collection.id);
+    collections.push(collection);
+  }
+
   elements.sort(compareElements);
-  return new Map(elements.map((element) => [element.id, element]));
+  collections.sort(compareCollections);
+  return {
+    blocks: new Map(elements.map((element) => [element.id, element])),
+    collections: new Map(
+      collections.map((collection) => [collection.id, collection]),
+    ),
+  };
 }
 
 export interface LoadDetailOptions {
@@ -78,6 +124,83 @@ export interface LoadDetailOptions {
   readonly resource: string;
   readonly url: string;
   readonly timeoutMs: number;
+}
+
+export async function loadCollectionDetail({
+  fetchImplementation,
+  id,
+  indexedCollection,
+  resource,
+  url,
+  timeoutMs,
+}: {
+  readonly fetchImplementation: RemoteFetch;
+  readonly id: string;
+  readonly indexedCollection: Collection;
+  readonly resource: string;
+  readonly url: string;
+  readonly timeoutMs: number;
+}): Promise<Collection> {
+  let payload: unknown;
+
+  try {
+    payload = await requestJson({
+      fetchImplementation,
+      resource,
+      url,
+      timeoutMs,
+    });
+  } catch (error) {
+    if (error instanceof RemoteCatalogError) {
+      throw error;
+    }
+
+    throw new RemoteCatalogCollectionDetailError(
+      id,
+      resource,
+      url,
+      messageOf(error),
+      error,
+    );
+  }
+
+  let detail: Collection;
+
+  try {
+    detail = parseCollection(payload, resource, url);
+  } catch (error) {
+    throw new RemoteCatalogCollectionDetailError(
+      id,
+      resource,
+      url,
+      messageOf(error),
+      error,
+    );
+  }
+
+  if (detail.id !== id) {
+    throw new RemoteCatalogCollectionDetailError(
+      id,
+      resource,
+      url,
+      `ID is "${detail.id}" but "${id}" was requested`,
+    );
+  }
+
+  assertMetadataOnlyCollection(detail, resource, url);
+
+  for (const field of collectionFields) {
+    if (!jsonValuesEqual(indexedCollection[field], detail[field])) {
+      throw new RemoteCatalogCollectionDetailError(
+        id,
+        resource,
+        url,
+        `field "${field}" differs from the validated index entry`,
+      );
+    }
+  }
+
+  return detail;
 }
 
 export async function loadDetail({
@@ -197,6 +320,42 @@ function parseCatalogElement(
   );
 }
 
+function parseCollection(
+  value: unknown,
+  resource: string,
+  url: string,
+  position?: number,
+): Collection {
+  const result = collectionSchema.safeParse(value);
+
+  if (result.success) {
+    return result.data;
+  }
+
+  const location = position === undefined ? "" : ` at index ${position}`;
+  throw new RemoteCatalogPayloadError(
+    resource,
+    url,
+    `Collection${location} failed @auren/schemas/collection validation: ${formatSchemaIssues(result.error.issues)}`,
+  );
+}
+
+function assertMetadataOnlyCollection(
+  collection: Collection,
+  resource: string,
+  url: string,
+): void {
+  for (const field of ["files", "target", "content"] as const) {
+    if (Object.hasOwn(collection, field)) {
+      throw new RemoteCatalogPayloadError(
+        resource,
+        url,
+        `Collection "${collection.id}" contains forbidden ${field}`,
+      );
+    }
+  }
+}
+
 function assertMetadataOnlyIndexElement(
   element: CatalogElement,
   resource: string,
@@ -261,6 +420,19 @@ function toFileInventoryEntry(file: CatalogElement["files"][number]) {
   return { path: file.path, kind: file.kind };
 }
 
+const collectionFields: readonly (keyof Collection)[] = [
+  "id",
+  "name",
+  "description",
+  "category",
+  "styles",
+  "industries",
+  "features",
+  "frameworks",
+  "blocks",
+  "metadata",
+];
+
 const catalogFields: readonly (keyof CatalogElement)[] = [
   "id",
   "name",
@@ -276,6 +448,10 @@ const catalogFields: readonly (keyof CatalogElement)[] = [
 ];
 
 function compareElements(left: CatalogElement, right: CatalogElement): number {
+  return compareStrings(left.id, right.id);
+}
+
+function compareCollections(left: Collection, right: Collection): number {
   return compareStrings(left.id, right.id);
 }
 

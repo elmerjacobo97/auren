@@ -14,6 +14,7 @@ import test from "node:test";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { catalogElementSchema } from "@auren/schemas/catalog";
+import { collectionSchema } from "@auren/schemas/collection";
 import { expectedBlockCategories } from "./verify-workspace.mjs";
 import { buildRegistry } from "./registry-build/builder.mjs";
 
@@ -44,6 +45,41 @@ async function withOutput(callback) {
   } finally {
     await rm(parent, { recursive: true, force: true });
   }
+}
+
+function baseCollection({
+  id = "saas-minimal",
+  blocks = ["hero-001", "footer-001"],
+  category = "marketing",
+  metadata = {},
+} = {}) {
+  return {
+    id,
+    name: "SaaS Minimal",
+    description: "A structurally valid temporary Collection fixture.",
+    category,
+    styles: ["minimal"],
+    industries: ["saas"],
+    features: ["responsive"],
+    frameworks: ["react"],
+    blocks,
+    metadata,
+  };
+}
+
+async function createCollection(collectionsRoot, options = {}) {
+  const collection = baseCollection(options);
+  const collectionRoot = path.join(
+    collectionsRoot,
+    collection.category,
+    collection.id,
+  );
+  await mkdir(collectionRoot, { recursive: true });
+  await writeFile(
+    path.join(collectionRoot, "registry.json"),
+    `${JSON.stringify(collection, null, 2)}\n`,
+  );
+  return collectionRoot;
 }
 
 function baseManifest({
@@ -418,6 +454,60 @@ test("protects unrelated output and rejects overlapping roots", async () => {
   });
 });
 
+test("builds, validates, and removes Collection metadata without touching sources", async () => {
+  await withFixture(async (blocksRoot) => {
+    await createBlock(blocksRoot, { id: "hero-001" });
+    await createBlock(blocksRoot, { type: "footer", id: "footer-001" });
+    const collectionsRoot = await mkdtemp(
+      path.join(tmpdir(), "auren-collections-source-"),
+    );
+
+    try {
+      await createCollection(collectionsRoot);
+      const blocksSnapshot = await snapshotTree(blocksRoot);
+      const collectionsSnapshot = await snapshotTree(collectionsRoot);
+
+      await withOutput(async (outputRoot) => {
+        await buildRegistry({ blocksRoot, collectionsRoot, outputRoot });
+
+        assert.equal(await snapshotTree(blocksRoot), blocksSnapshot);
+        assert.equal(await snapshotTree(collectionsRoot), collectionsSnapshot);
+        const index = await readJson(path.join(outputRoot, "registry.json"));
+        collectionSchema.parse(index.collections[0]);
+        collectionSchema.parse(
+          await readJson(
+            path.join(outputRoot, "collections/saas-minimal.json"),
+          ),
+        );
+        assert.deepEqual(index.collections[0].blocks, [
+          "hero-001",
+          "footer-001",
+        ]);
+
+        await rm(path.join(collectionsRoot, "marketing", "saas-minimal"), {
+          recursive: true,
+          force: true,
+        });
+        await buildRegistry({ blocksRoot, collectionsRoot, outputRoot });
+        assert.deepEqual(
+          (await readJson(path.join(outputRoot, "registry.json"))).collections,
+          [],
+        );
+        await assert.rejects(
+          () =>
+            readFile(path.join(outputRoot, "collections/saas-minimal.json")),
+          { code: "ENOENT" },
+        );
+      });
+
+      assert.equal(await snapshotTree(blocksRoot), blocksSnapshot);
+      assert.equal(await snapshotTree(collectionsRoot), "[]");
+    } finally {
+      await rm(collectionsRoot, { recursive: true, force: true });
+    }
+  });
+});
+
 test("built command generates the committed catalog without changing source", async () => {
   const sourceRoot = path.join(root, "blocks");
   const sourceSnapshot = await snapshotTree(sourceRoot);
@@ -432,14 +522,30 @@ test("built command generates the committed catalog without changing source", as
       ],
       { cwd: root },
     );
-    assert.match(stdout, /Registry build completed: 11 blocks/);
+    assert.match(
+      stdout,
+      /Registry build completed: 11 blocks and 1 collections/,
+    );
 
     const index = await readJson(path.join(outputRoot, "registry.json"));
     assert.equal(index.blocks.length, 11);
+    assert.equal(index.collections.length, 1);
     assert.deepEqual(
       index.blocks.map((block) => block.id),
       [...index.blocks.map((block) => block.id)].sort(compareStrings),
     );
+    assert.deepEqual(index.collections[0].blocks, [
+      "navbar-001",
+      "hero-001",
+      "features-001",
+      "footer-001",
+    ]);
+
+    const collection = await readJson(
+      path.join(outputRoot, "collections/saas-minimal.json"),
+    );
+    assert.equal(collection.id, "saas-minimal");
+    assert.deepEqual(collection.blocks, index.collections[0].blocks);
 
     const hero = await readJson(path.join(outputRoot, "blocks/hero-001.json"));
     const heroComponent = hero.files.find(
@@ -451,6 +557,7 @@ test("built command generates the committed catalog without changing source", as
     );
     assert.deepEqual((await readdir(outputRoot)).sort(), [
       "blocks",
+      "collections",
       "registry.json",
     ]);
     assert.equal(await snapshotTree(sourceRoot), sourceSnapshot);

@@ -247,3 +247,24 @@ These later checks belong to Quality Validation, Visual Testing, and
 Accessibility Validation rather than to token matching in the structural
 verifier. A passing `pnpm check` proves source-tree consistency, not the full
 quality of a rendered block.
+
+## Collections and installation
+
+A Collection is maintained separately under `../collections/` as an ordered,
+metadata-only list of block IDs. It must not copy a block's source files,
+`dependencies`, or installation policy. The Collection verifier confirms that
+members exist in this catalog and support the Collection's declared
+frameworks; `pnpm registry:build` and `pnpm registry:publish` expose the
+corresponding metadata at `collections/<collection-id>.json`.
+
+Install a Collection through the explicit CLI selector:
+
+```bash
+auren add collection/saas-minimal
+```
+
+The installer resolves each member's Auren dependency closure, deduplicates
+shared blocks, validates all planned targets before writing, and places each
+block below the configured components directory using its ID-specific path.
+See [`collections/README.md`](../collections/README.md) for the Collection
+manifest, hosting, ordering, and external-installation rollback contract.

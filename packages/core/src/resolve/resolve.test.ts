@@ -1,11 +1,14 @@
 import type { CatalogElement } from "@auren/schemas/catalog";
+import type { Collection } from "@auren/schemas/collection";
 import { LocalRegistry } from "@auren/registry";
 import { describe, expect, it } from "vitest";
 import {
   CircularDependencyError,
   MissingAurenDependencyError,
   UnknownBlockError,
+  UnknownCollectionError,
   resolveBlock,
+  resolveCollection,
 } from "./resolve";
 
 function createElement(
@@ -33,6 +36,26 @@ function aurenDependency(id: string): CatalogElement["dependencies"][number] {
   return { kind: "auren", id };
 }
 
+function createCollection(
+  id: string,
+  blocks: readonly string[],
+  changes: Partial<Collection> = {},
+): Collection {
+  return {
+    id,
+    name: `Collection ${id}`,
+    description: `Complete collection ${id}.`,
+    category: "marketing",
+    styles: ["minimal"],
+    industries: ["saas"],
+    features: ["responsive"],
+    frameworks: ["react"],
+    blocks: [...blocks],
+    metadata: {},
+    ...changes,
+  };
+}
+
 function captureError(action: () => unknown): unknown {
   try {
     action();
@@ -42,6 +65,98 @@ function captureError(action: () => unknown): unknown {
 
   throw new Error("Expected action to throw");
 }
+
+describe("resolveCollection", () => {
+  it("keeps authored members while returning a deduplicated deep-first closure", () => {
+    const registry = new LocalRegistry();
+    const shared = createElement("shared-001");
+    const first = createElement("first-001", {
+      dependencies: [aurenDependency("shared-001")],
+    });
+    const second = createElement("second-001", {
+      dependencies: [aurenDependency("shared-001")],
+    });
+    registry.registerMany([shared, first, second]);
+    const collection = createCollection("saas-minimal", [
+      "first-001",
+      "second-001",
+    ]);
+    registry.registerCollection(collection);
+
+    const result = resolveCollection(registry, collection.id);
+
+    expect(result.collection).toEqual(collection);
+    expect(result.members.map(({ id }) => id)).toEqual([
+      "first-001",
+      "second-001",
+    ]);
+    expect(result.blocks.map(({ id }) => id)).toEqual([
+      "shared-001",
+      "first-001",
+      "second-001",
+    ]);
+  });
+
+  it("rejects an unknown collection with UnknownCollectionError", () => {
+    const registry = new LocalRegistry();
+    const error = captureError(() =>
+      resolveCollection(registry, "missing-collection"),
+    );
+
+    expect(error).toBeInstanceOf(UnknownCollectionError);
+    expect(error).toMatchObject({
+      id: "missing-collection",
+      name: "UnknownCollectionError",
+    });
+  });
+
+  it("rejects a Collection that references an unknown member", () => {
+    const registry = new LocalRegistry();
+    const collection = createCollection("saas-minimal", ["missing-001"]);
+    const error = captureError(() => registry.registerCollection(collection));
+
+    expect(error).toMatchObject({
+      collectionId: "saas-minimal",
+      blockId: "missing-001",
+      name: "MissingCollectionBlockError",
+    });
+  });
+
+  it("rejects a cycle in a Collection member dependency closure", () => {
+    const registry = new LocalRegistry();
+    registry.registerMany([
+      createElement("first-001", {
+        dependencies: [{ kind: "auren", id: "second-001" }],
+      }),
+      createElement("second-001", {
+        dependencies: [{ kind: "auren", id: "first-001" }],
+      }),
+    ]);
+    registry.registerCollection(
+      createCollection("saas-minimal", ["first-001"]),
+    );
+
+    expect(() => resolveCollection(registry, "saas-minimal")).toThrow(
+      CircularDependencyError,
+    );
+  });
+
+  it("does not mutate the registry while resolving a collection", () => {
+    const registry = new LocalRegistry();
+    const element = createElement("hero-001");
+    registry.register(element);
+    registry.registerCollection(createCollection("saas-minimal", [element.id]));
+    const before = {
+      elements: registry.list(),
+      collections: registry.listCollections(),
+    };
+
+    resolveCollection(registry, "saas-minimal");
+
+    expect(registry.list()).toEqual(before.elements);
+    expect(registry.listCollections()).toEqual(before.collections);
+  });
+});
 
 describe("resolveBlock", () => {
   it("returns the element itself when it declares no internal dependencies", () => {

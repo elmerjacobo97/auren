@@ -1,31 +1,53 @@
 import { lstat, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
+import { collectionSchema as defaultCollectionSchema } from "@auren/schemas/collection";
 import { RegistryPublishError } from "./errors.mjs";
 
 const detailFilenamePattern = /^[a-z0-9]+(?:-[a-z0-9]+)*\.json$/;
 export async function loadPublicRegistry(
   registryRoot,
-  { catalogElementSchema } = {},
+  { catalogElementSchema, collectionSchema } = {},
 ) {
   await assertDirectory(registryRoot);
   const topEntries = await readDirectory(registryRoot);
-  assertStaticLayout(registryRoot, topEntries);
+  const hasCollectionsDirectory = assertStaticLayout(registryRoot, topEntries);
 
   const schema = catalogElementSchema ?? (await loadCatalogElementSchema());
+  const collectionContract = collectionSchema ?? defaultCollectionSchema;
   const indexResource = await readJsonResource(
     path.join(registryRoot, "registry.json"),
   );
   validateIndexEnvelope(indexResource.value);
   const indexBlocks = validateIndexBlocks(schema, indexResource.value.blocks);
+  const indexCollections = validateIndexCollections(
+    collectionContract,
+    indexResource.value.collections,
+  );
+
+  if ((indexCollections !== undefined) !== hasCollectionsDirectory) {
+    throw new RegistryPublishError(
+      "Registry Collection resources do not match the index envelope",
+      ["collections/ and registry.json.collections must be present together"],
+    );
+  }
+
   const details = await loadDetails(registryRoot, schema);
+  const collections = await loadCollectionDetails(
+    registryRoot,
+    collectionContract,
+    indexCollections,
+  );
 
   validateCorrespondence(indexBlocks, details);
+  validateCollectionCorrespondence(indexCollections, collections);
 
   return {
     catalogElementSchema: schema,
+    collectionSchema: collectionContract,
     index: indexResource.value,
     indexBytes: indexResource.bytes,
     details,
+    collections,
   };
 }
 
@@ -67,22 +89,27 @@ async function readDirectory(directory) {
 
 function assertStaticLayout(registryRoot, topEntries) {
   const topNames = new Set(topEntries.map((entry) => entry.name));
+  const hasCollectionsDirectory = topNames.has("collections");
+  const expectedEntryCount = hasCollectionsDirectory ? 3 : 2;
   const hasExpectedEntries =
-    topNames.size === 2 &&
+    topNames.size === expectedEntryCount &&
     topNames.has("registry.json") &&
     topNames.has("blocks");
   const hasExpectedTypes = topEntries.every(
     (entry) =>
       (entry.name === "registry.json" && entry.isFile()) ||
-      (entry.name === "blocks" && entry.isDirectory()),
+      (entry.name === "blocks" && entry.isDirectory()) ||
+      (entry.name === "collections" && entry.isDirectory()),
   );
 
   if (!hasExpectedEntries || !hasExpectedTypes) {
     throw new RegistryPublishError(
       `Registry input has an unexpected top-level entry: ${displayPath(registryRoot)}`,
-      ["expected only registry.json and blocks/"],
+      ["expected registry.json, blocks/, and optional collections/"],
     );
   }
+
+  return hasCollectionsDirectory;
 }
 
 function validateIndexEnvelope(index) {
@@ -92,10 +119,11 @@ function validateIndexEnvelope(index) {
     Array.isArray(index) ||
     index.schemaVersion !== 1 ||
     !Number.isInteger(index.schemaVersion) ||
-    !Array.isArray(index.blocks)
+    !Array.isArray(index.blocks) ||
+    (Object.hasOwn(index, "collections") && !Array.isArray(index.collections))
   ) {
     throw new RegistryPublishError("Registry index has an invalid envelope", [
-      "expected { schemaVersion: 1, blocks: [] }",
+      "expected { schemaVersion: 1, blocks: [], collections?: [] }",
     ]);
   }
 }
@@ -128,6 +156,40 @@ function validateIndexBlocks(catalogElementSchema, blocks) {
   }
 
   return indexBlocks;
+}
+
+function validateIndexCollections(collectionSchema, collections) {
+  if (collections === undefined) {
+    return undefined;
+  }
+
+  const indexCollections = [];
+  const ids = new Set();
+
+  for (const [position, collection] of collections.entries()) {
+    assertSchema(
+      collectionSchema,
+      collection,
+      `Registry index Collection ${position}`,
+      "collection",
+    );
+    assertNoCollectionInstallationFields(
+      collection,
+      `Registry index Collection ${position}`,
+    );
+
+    if (ids.has(collection.id)) {
+      throw new RegistryPublishError(
+        "Registry index contains duplicate Collection IDs",
+        [`duplicate Collection id: ${collection.id}`],
+      );
+    }
+
+    ids.add(collection.id);
+    indexCollections.push(collection);
+  }
+
+  return indexCollections;
 }
 
 async function loadDetails(registryRoot, catalogElementSchema) {
@@ -176,6 +238,72 @@ async function loadDetails(registryRoot, catalogElementSchema) {
 
   details.sort((left, right) => compareStrings(left.id, right.id));
   return details;
+}
+
+async function loadCollectionDetails(
+  registryRoot,
+  collectionSchema,
+  indexCollections,
+) {
+  if (indexCollections === undefined) {
+    return undefined;
+  }
+
+  const collectionsRoot = path.join(registryRoot, "collections");
+  const entries = await readDirectory(collectionsRoot);
+  const collections = [];
+
+  for (const entry of entries) {
+    const collectionPath = path.join(collectionsRoot, entry.name);
+
+    if (!entry.isFile()) {
+      throw new RegistryPublishError(
+        `Registry Collection detail entry is not a regular file: ${displayPath(collectionPath)}`,
+      );
+    }
+
+    if (!entry.name.endsWith(".json")) {
+      throw new RegistryPublishError(
+        `Registry Collection detail entry is not JSON: ${displayPath(collectionPath)}`,
+      );
+    }
+
+    if (!detailFilenamePattern.test(entry.name)) {
+      throw new RegistryPublishError(
+        `Registry Collection detail filename is unsafe: ${displayPath(collectionPath)}`,
+      );
+    }
+
+    const id = entry.name.slice(0, -".json".length);
+    const resource = await readJsonResource(collectionPath);
+    assertSchema(
+      collectionSchema,
+      resource.value,
+      `Registry Collection detail ${id}`,
+      "collection",
+    );
+    assertNoCollectionInstallationFields(
+      resource.value,
+      `Registry Collection detail ${id}`,
+    );
+
+    if (resource.value.id !== id) {
+      throw new RegistryPublishError(
+        "Registry Collection detail filename and payload IDs differ",
+        [`${entry.name}: payload id is ${JSON.stringify(resource.value.id)}`],
+      );
+    }
+
+    collections.push({
+      id,
+      detail: resource.value,
+      bytes: resource.bytes,
+      fileName: entry.name,
+    });
+  }
+
+  collections.sort((left, right) => compareStrings(left.id, right.id));
+  return collections;
 }
 
 function validateCorrespondence(indexBlocks, details) {
@@ -231,6 +359,51 @@ function validateCorrespondence(indexBlocks, details) {
   }
 }
 
+function validateCollectionCorrespondence(indexCollections, details) {
+  if (indexCollections === undefined || details === undefined) {
+    return;
+  }
+
+  const indexById = new Map(
+    indexCollections.map((collection) => [collection.id, collection]),
+  );
+  const detailById = new Map();
+
+  for (const entry of details) {
+    if (detailById.has(entry.id)) {
+      throw new RegistryPublishError(
+        "Registry Collection detail resources contain duplicate IDs",
+        [`duplicate Collection detail id: ${entry.id}`],
+      );
+    }
+
+    detailById.set(entry.id, entry);
+
+    if (!indexById.has(entry.id)) {
+      throw new RegistryPublishError(
+        "Registry Collection detail resources do not match the index",
+        [`extra Collection detail not listed by index: ${entry.fileName}`],
+      );
+    }
+
+    if (!sameJsonValue(indexById.get(entry.id), entry.detail)) {
+      throw new RegistryPublishError(
+        "Registry Collection index and detail metadata differ",
+        [`${entry.id}: index and detail payloads do not correspond`],
+      );
+    }
+  }
+
+  for (const collection of indexCollections) {
+    if (!detailById.has(collection.id)) {
+      throw new RegistryPublishError(
+        "Registry Collection detail resources do not match the index",
+        [`missing Collection detail for index id: ${collection.id}`],
+      );
+    }
+  }
+}
+
 function validateDetailContent(element, id) {
   for (const file of element.files) {
     if (!Object.hasOwn(file, "content") || typeof file.content !== "string") {
@@ -244,6 +417,16 @@ function validateDetailContent(element, id) {
       throw new RegistryPublishError(
         "Registry detail asset content is not canonical base64",
         [`${id}: ${file.path}`],
+      );
+    }
+  }
+}
+
+function assertNoCollectionInstallationFields(collection, label) {
+  for (const field of ["target", "content", "files"]) {
+    if (Object.hasOwn(collection, field)) {
+      throw new RegistryPublishError(
+        `${label} contains a forbidden ${field} field`,
       );
     }
   }
@@ -279,12 +462,12 @@ function assertNoInstallationFields(element, label, kind) {
   }
 }
 
-function assertSchema(schema, value, label) {
+function assertSchema(schema, value, label, schemaName = "catalog") {
   const result = schema.safeParse(value);
 
   if (!result.success) {
     throw new RegistryPublishError(
-      `${label} failed @auren/schemas/catalog validation`,
+      `${label} failed @auren/schemas/${schemaName} validation`,
       formatSchemaIssues(result.error.issues),
     );
   }

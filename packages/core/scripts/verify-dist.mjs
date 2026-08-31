@@ -2,8 +2,11 @@ import { searchBlocks } from "@auren/core/search";
 import {
   CircularDependencyError,
   MissingAurenDependencyError,
+  MissingCollectionBlockError,
   UnknownBlockError,
+  UnknownCollectionError,
   resolveBlock,
+  resolveCollection,
 } from "@auren/core/resolve";
 import {
   ConflictingPackageVersionsError,
@@ -11,7 +14,9 @@ import {
   InvalidShadcnRequirementError,
   collectPackageDependencies,
   collectShadcnDependencies,
+  createCollectionDependencyPlan,
   createDependencyPlan,
+  resolveProjectCollectionDependencies,
   resolveProjectDependencies,
 } from "@auren/core/dependencies";
 import {
@@ -31,6 +36,8 @@ const errorClasses = [
   [UnknownBlockError, "UnknownBlockError"],
   [MissingAurenDependencyError, "MissingAurenDependencyError"],
   [CircularDependencyError, "CircularDependencyError"],
+  [UnknownCollectionError, "UnknownCollectionError"],
+  [MissingCollectionBlockError, "MissingCollectionBlockError"],
   [ConflictingPackageVersionsError, "ConflictingPackageVersionsError"],
   [InvalidPackageRequirementError, "InvalidPackageRequirementError"],
   [InvalidShadcnRequirementError, "InvalidShadcnRequirementError"],
@@ -43,10 +50,13 @@ const errorClasses = [
 if (
   typeof searchBlocks !== "function" ||
   typeof resolveBlock !== "function" ||
+  typeof resolveCollection !== "function" ||
   typeof collectPackageDependencies !== "function" ||
   typeof collectShadcnDependencies !== "function" ||
   typeof createDependencyPlan !== "function" ||
+  typeof createCollectionDependencyPlan !== "function" ||
   typeof resolveProjectDependencies !== "function" ||
+  typeof resolveProjectCollectionDependencies !== "function" ||
   typeof loadBlockMetadata !== "function" ||
   typeof loadBlockFiles !== "function" ||
   typeof validateCompatibility !== "function" ||

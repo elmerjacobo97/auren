@@ -1,4 +1,5 @@
 import type { CatalogElement } from "@auren/schemas/catalog";
+import type { Collection } from "@auren/schemas/collection";
 import { LocalRegistry } from "@auren/registry";
 import { describe, expect, it } from "vitest";
 import {
@@ -6,7 +7,9 @@ import {
   InvalidPackageRequirementError,
   InvalidShadcnRequirementError,
   collectPackageDependencies,
+  createCollectionDependencyPlan,
   createDependencyPlan,
+  resolveProjectCollectionDependencies,
   resolveProjectDependencies,
   validateShadcnDependency,
 } from "./dependency-plan";
@@ -34,6 +37,21 @@ function createElement(
 
 function packageDependency(name: string, version: string) {
   return { kind: "package" as const, name, version };
+}
+
+function createCollection(id: string, blocks: readonly string[]): Collection {
+  return {
+    id,
+    name: `Collection ${id}`,
+    description: `Complete collection ${id}.`,
+    category: "marketing",
+    styles: ["minimal"],
+    industries: ["saas"],
+    features: ["responsive"],
+    frameworks: ["react"],
+    blocks: [...blocks],
+    metadata: {},
+  };
 }
 
 function captureError(action: () => unknown): unknown {
@@ -179,6 +197,83 @@ describe("dependency planning", () => {
       { name: "alert-dialog" },
     ]);
     expect(plan.packages).toEqual([]);
+  });
+
+  it("aggregates collection requirements across authored members", () => {
+    const registry = new LocalRegistry();
+    const first = createElement("first-001", {
+      dependencies: [
+        packageDependency("motion", "^12.0.0"),
+        { kind: "shadcn", name: "button" },
+      ],
+    });
+    const second = createElement("second-001", {
+      dependencies: [
+        packageDependency("motion", "^12.0.0"),
+        { kind: "shadcn", name: "button" },
+        { kind: "shadcn", name: "dialog" },
+      ],
+    });
+    registry.registerMany([first, second]);
+    registry.registerCollection(
+      createCollection("saas-minimal", ["second-001", "first-001"]),
+    );
+
+    const plan = createCollectionDependencyPlan(registry, "saas-minimal");
+
+    expect(plan.members.map(({ id }) => id)).toEqual([
+      "second-001",
+      "first-001",
+    ]);
+    expect(plan.auren).toEqual(["second-001", "first-001"]);
+    expect(plan.packages).toEqual([{ name: "motion", version: "^12.0.0" }]);
+    expect(plan.shadcn).toEqual([{ name: "button" }, { name: "dialog" }]);
+  });
+
+  it("rejects conflicting package ranges across Collection members", () => {
+    const registry = new LocalRegistry();
+    registry.registerMany([
+      createElement("first-001", {
+        dependencies: [packageDependency("motion", "^11.0.0")],
+      }),
+      createElement("second-001", {
+        dependencies: [packageDependency("motion", "^12.0.0")],
+      }),
+    ]);
+    registry.registerCollection(
+      createCollection("saas-minimal", ["first-001", "second-001"]),
+    );
+
+    expect(() =>
+      createCollectionDependencyPlan(registry, "saas-minimal"),
+    ).toThrow(ConflictingPackageVersionsError);
+  });
+
+  it("reconciles collection package requirements once against the project", () => {
+    const registry = new LocalRegistry();
+    const first = createElement("first-001", {
+      dependencies: [packageDependency("motion", "^12.0.0")],
+    });
+    const second = createElement("second-001", {
+      dependencies: [packageDependency("lucide-react", "^0.468.0")],
+    });
+    registry.registerMany([first, second]);
+    registry.registerCollection(
+      createCollection("saas-minimal", ["first-001", "second-001"]),
+    );
+
+    expect(
+      resolveProjectCollectionDependencies(registry, "saas-minimal", {
+        motion: "^12.0.0",
+      }),
+    ).toMatchObject({
+      packages: [
+        { name: "motion", version: "^12.0.0" },
+        { name: "lucide-react", version: "^0.468.0" },
+      ],
+      satisfied: [{ name: "motion", version: "^12.0.0" }],
+      missing: [{ name: "lucide-react", version: "^0.468.0" }],
+    });
   });
 
   it("reconciles satisfied, missing, and incompatible package ranges", () => {

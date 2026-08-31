@@ -1,7 +1,10 @@
 import type { CatalogElement } from "@auren/schemas/catalog";
+import type { Collection } from "@auren/schemas/collection";
 import type {
+  CollectionCatalogSource,
   InstallableCatalogRecord,
   InstallableCatalogSource,
+  InstallableCollectionRecord,
 } from "./catalog-source.js";
 import {
   normalizeTimeout,
@@ -10,6 +13,11 @@ import {
 } from "./remote-catalog-endpoint.js";
 import { getDefaultFetch } from "./remote-catalog-transport.js";
 import {
+  RemoteCatalogCollectionDetailError,
+  RemoteCatalogDetailError,
+} from "./remote-catalog-errors.js";
+import {
+  loadCollectionDetail,
   loadDetail,
   loadIndex,
   toResolvedBlockFile,
@@ -34,6 +42,7 @@ export type {
 export {
   InvalidRegistryUrlError,
   RemoteCatalogContentTypeError,
+  RemoteCatalogCollectionDetailError,
   RemoteCatalogDetailError,
   RemoteCatalogError,
   RemoteCatalogHttpError,
@@ -43,26 +52,31 @@ export {
 
 export function createRemoteCatalogSource(
   options: RemoteCatalogSourceOptions = {},
-): InstallableCatalogSource {
+): InstallableCatalogSource & CollectionCatalogSource {
   const registryUrl = resolveRegistryUrl(options.registryUrl, options.env);
   const fetchImplementation =
     options.fetchImpl ?? options.fetch ?? getDefaultFetch();
   const timeoutMs = normalizeTimeout(options.timeoutMs);
   const indexUrl = new URL("registry.json", registryUrl).toString();
   const indexResource = "/registry.json";
-  let indexPromise: Promise<ReadonlyMap<string, CatalogElement>> | undefined;
+  let indexPromise: ReturnType<typeof loadIndex> | undefined;
   const detailPromises = new Map<string, Promise<CatalogElement>>();
+  const collectionDetailPromises = new Map<string, Promise<Collection>>();
 
-  async function readIndex(): Promise<ReadonlyMap<string, CatalogElement>> {
-    indexPromise ??= loadIndex({
-      fetchImplementation,
-      indexResource,
-      indexUrl,
-      timeoutMs,
-    });
+  async function readIndex(): Promise<Awaited<ReturnType<typeof loadIndex>>> {
+    if (indexPromise === undefined) {
+      indexPromise = loadIndex({
+        fetchImplementation,
+        indexResource,
+        indexUrl,
+        timeoutMs,
+      });
+    }
+
+    const promise = indexPromise;
 
     try {
-      return await indexPromise;
+      return await promise;
     } catch (error) {
       indexPromise = undefined;
       throw error;
@@ -119,25 +133,112 @@ export function createRemoteCatalogSource(
     };
   }
 
+  async function readCollectionDetail(
+    id: string,
+    indexedCollection: Collection,
+  ): Promise<Collection> {
+    const existingPromise = collectionDetailPromises.get(id);
+
+    if (existingPromise !== undefined) {
+      try {
+        return await existingPromise;
+      } catch (error) {
+        collectionDetailPromises.delete(id);
+        throw error;
+      }
+    }
+
+    const resource = `/collections/${encodeURIComponent(id)}.json`;
+    const url = new URL(
+      `collections/${encodeURIComponent(id)}.json`,
+      registryUrl,
+    ).toString();
+    const detailPromise = loadCollectionDetail({
+      fetchImplementation,
+      id,
+      indexedCollection,
+      resource,
+      url,
+      timeoutMs,
+    });
+    collectionDetailPromises.set(id, detailPromise);
+
+    try {
+      return await detailPromise;
+    } catch (error) {
+      collectionDetailPromises.delete(id);
+      throw error instanceof RemoteCatalogCollectionDetailError
+        ? error
+        : error instanceof RemoteCatalogDetailError
+          ? new RemoteCatalogCollectionDetailError(
+              id,
+              resource,
+              url,
+              error.message,
+              error,
+            )
+          : error;
+    }
+  }
+
+  function createInstallableCollectionRecord(
+    indexedCollection: Collection,
+  ): InstallableCollectionRecord {
+    return {
+      collection: cloneCollection(indexedCollection),
+      loadCollection: async () => {
+        const detail = await readCollectionDetail(
+          indexedCollection.id,
+          indexedCollection,
+        );
+        return cloneCollection(detail);
+      },
+    };
+  }
+
   return {
     async getById(id) {
-      const element = (await readIndex()).get(id);
+      const element = (await readIndex()).blocks.get(id);
       return element === undefined ? undefined : cloneElement(element);
     },
 
     async list() {
-      return [...(await readIndex()).values()].map(cloneElement);
+      return [...(await readIndex()).blocks.values()].map(cloneElement);
     },
 
     async getInstallableById(id) {
-      const element = (await readIndex()).get(id);
+      const element = (await readIndex()).blocks.get(id);
       return element === undefined
         ? undefined
         : createInstallableRecord(element);
     },
 
     async listInstallable() {
-      return [...(await readIndex()).values()].map(createInstallableRecord);
+      return [...(await readIndex()).blocks.values()].map(
+        createInstallableRecord,
+      );
+    },
+
+    async getCollectionById(id) {
+      const collection = (await readIndex()).collections.get(id);
+      return collection === undefined ? undefined : cloneCollection(collection);
+    },
+
+    async listCollections() {
+      return [...(await readIndex()).collections.values()].map(cloneCollection);
+    },
+
+    async getInstallableCollectionById(id) {
+      const collection = (await readIndex()).collections.get(id);
+      return collection === undefined
+        ? undefined
+        : createInstallableCollectionRecord(collection);
+    },
+
+    async listInstallableCollections() {
+      return [...(await readIndex()).collections.values()].map(
+        createInstallableCollectionRecord,
+      );
     },
   };
 }
@@ -152,6 +253,18 @@ function cloneElement(element: CatalogElement): CatalogElement {
     dependencies: element.dependencies.map((dependency) => ({ ...dependency })),
     files: element.files.map((file) => ({ ...file })),
     metadata: cloneJsonValue(element.metadata),
+  };
+}
+
+function cloneCollection(collection: Collection): Collection {
+  return {
+    ...collection,
+    styles: [...collection.styles],
+    industries: [...collection.industries],
+    features: [...collection.features],
+    frameworks: [...collection.frameworks],
+    blocks: [...collection.blocks],
+    metadata: cloneJsonValue(collection.metadata),
   };
 }
 

@@ -9,11 +9,14 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { CatalogElement } from "@auren/schemas/catalog";
+import type { Collection } from "@auren/schemas/collection";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   CatalogMetadataError,
   CatalogUnavailableError,
+  CollectionMetadataError,
   DuplicateCatalogIdError,
+  MissingCollectionMemberError,
 } from "./catalog-source.js";
 import { createLocalCatalogSource } from "./local-catalog-source.js";
 
@@ -34,6 +37,19 @@ const validElement: CatalogElement = {
 
 const fixtureRoots: string[] = [];
 
+const validCollection: Collection = {
+  id: "saas-minimal",
+  name: "SaaS Minimal",
+  description: "A minimal SaaS collection.",
+  category: "marketing",
+  styles: ["minimal"],
+  industries: ["saas"],
+  features: ["responsive"],
+  frameworks: ["react"],
+  blocks: ["hero-001"],
+  metadata: {},
+};
+
 afterEach(async () => {
   await Promise.all(
     fixtureRoots
@@ -46,6 +62,27 @@ async function createFixture(): Promise<string> {
   const root = await mkdtemp(path.join(tmpdir(), "auren-cli-catalog-"));
   fixtureRoots.push(root);
   return root;
+}
+
+async function writeCollection(
+  root: string,
+  category: string,
+  directory: string,
+  collection: unknown,
+  extraFiles: Record<string, string> = {},
+): Promise<string> {
+  const collectionDir = path.join(root, category, directory);
+  await mkdir(collectionDir, { recursive: true });
+  await writeFile(
+    path.join(collectionDir, "registry.json"),
+    `${JSON.stringify(collection, null, 2)}\n`,
+  );
+
+  for (const [relativePath, content] of Object.entries(extraFiles)) {
+    await writeFile(path.join(collectionDir, relativePath), content);
+  }
+
+  return collectionDir;
 }
 
 async function writeElement(
@@ -327,5 +364,81 @@ describe("createLocalCatalogSource", () => {
     await source.list();
 
     expect(await snapshotTree(root)).toEqual(before);
+  });
+
+  it("loads validated Collections with authored members and defensive copies", async () => {
+    const blocksRoot = await createFixture();
+    const collectionsRoot = await createFixture();
+    await writeElement(
+      blocksRoot,
+      "marketing",
+      "hero",
+      "hero-001",
+      validElement,
+    );
+    await writeCollection(
+      collectionsRoot,
+      "marketing",
+      "saas-minimal",
+      validCollection,
+    );
+    const source = createLocalCatalogSource({
+      catalogRoot: blocksRoot,
+      collectionsRoot,
+    });
+
+    const record = await source.getInstallableCollectionById("saas-minimal");
+    const collection = await record?.loadCollection();
+
+    expect(collection).toEqual(validCollection);
+    expect(record?.collection.blocks).toEqual(["hero-001"]);
+    expect(await source.listCollections()).toEqual([validCollection]);
+    if (collection !== undefined) {
+      collection.blocks.push("mutated-001");
+    }
+    await expect(source.getCollectionById("saas-minimal")).resolves.toEqual(
+      validCollection,
+    );
+  });
+
+  it("rejects invalid Collection members and payload files", async () => {
+    const blocksRoot = await createFixture();
+    const collectionsRoot = await createFixture();
+    await writeElement(
+      blocksRoot,
+      "marketing",
+      "hero",
+      "hero-001",
+      validElement,
+    );
+    const collectionDir = await writeCollection(
+      collectionsRoot,
+      "marketing",
+      "saas-minimal",
+      { ...validCollection, blocks: ["missing-001"] },
+      { "nested.txt": "unexpected\n" },
+    );
+    const source = createLocalCatalogSource({
+      catalogRoot: blocksRoot,
+      collectionsRoot,
+    });
+
+    await expect(source.listCollections()).rejects.toBeInstanceOf(
+      CollectionMetadataError,
+    );
+
+    await rm(path.join(collectionDir, "nested.txt"));
+    await writeCollection(collectionsRoot, "marketing", "saas-minimal", {
+      ...validCollection,
+      blocks: ["missing-001"],
+    });
+    const missingSource = createLocalCatalogSource({
+      catalogRoot: blocksRoot,
+      collectionsRoot,
+    });
+    await expect(
+      missingSource.getCollectionById("saas-minimal"),
+    ).rejects.toBeInstanceOf(MissingCollectionMemberError);
+    expect(collectionDir).toContain(collectionsRoot);
   });
 });

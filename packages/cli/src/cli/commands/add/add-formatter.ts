@@ -8,6 +8,13 @@ export function formatAddResult(
 ): string {
   const lines = [
     `Added ${plan.requestedId}`,
+    ...(plan.collection === null
+      ? []
+      : [
+          `Collection: ${plan.collection.id}`,
+          "Authored members:",
+          ...plan.members.map((member) => `- ${member.id}`),
+        ]),
     "Resolved blocks:",
     ...plan.blocks.map((block) => `- ${block.id}`),
     "Satisfied package requirements:",

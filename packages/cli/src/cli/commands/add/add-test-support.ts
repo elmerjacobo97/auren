@@ -2,10 +2,13 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { CatalogElement } from "@auren/schemas/catalog";
+import type { Collection } from "@auren/schemas/collection";
 import { vi } from "vitest";
 import type {
+  CollectionCatalogSource,
   InstallableCatalogRecord,
   InstallableCatalogSource,
+  InstallableCollectionRecord,
 } from "../../catalog/catalog-source.js";
 import { runCli } from "../../command/runner.js";
 import type { PackageInstaller } from "./package-installer.js";
@@ -98,6 +101,15 @@ export function createRecord(item: CatalogElement): InstallableCatalogRecord {
   };
 }
 
+export function createCollectionRecord(
+  item: Collection,
+): InstallableCollectionRecord {
+  return {
+    collection: item,
+    loadCollection: async () => item,
+  };
+}
+
 export async function configureShadcn(
   project: string,
   options: {
@@ -136,9 +148,11 @@ export async function configureShadcn(
 
 export function createSource(
   records: readonly InstallableCatalogRecord[] = [createRecord(element)],
-): InstallableCatalogSource & {
-  listInstallable: ReturnType<typeof vi.fn>;
-} {
+  collections: readonly InstallableCollectionRecord[] = [],
+): InstallableCatalogSource &
+  CollectionCatalogSource & {
+    listInstallable: ReturnType<typeof vi.fn>;
+  } {
   const listInstallable = vi.fn(async () => records);
 
   return {
@@ -151,6 +165,17 @@ export function createSource(
       records.find((record) => record.element.id === id),
     ),
     listInstallable,
+    getCollectionById: vi.fn(
+      async (id: string) =>
+        collections.find((record) => record.collection.id === id)?.collection,
+    ),
+    listCollections: vi.fn(async () =>
+      collections.map(({ collection: item }) => item),
+    ),
+    getInstallableCollectionById: vi.fn(async (id: string) =>
+      collections.find((record) => record.collection.id === id),
+    ),
+    listInstallableCollections: vi.fn(async () => collections),
   };
 }
 

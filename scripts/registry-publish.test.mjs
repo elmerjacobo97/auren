@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { promisify } from "node:util";
 import { catalogElementSchema } from "@auren/schemas/catalog";
+import { collectionSchema } from "@auren/schemas/collection";
 import { expectedBlockCategories } from "./verify-workspace.mjs";
 import { buildRegistry } from "./registry-build/builder.mjs";
 import { publishRegistry } from "./registry-publish/publisher.mjs";
@@ -53,6 +54,41 @@ async function withRoots(callback) {
   } finally {
     await rm(parent, { recursive: true, force: true });
   }
+}
+
+function baseCollection({
+  id = "saas-minimal",
+  blocks = ["hero-001"],
+  category = "marketing",
+  metadata = {},
+} = {}) {
+  return {
+    id,
+    name: "SaaS Minimal",
+    description: "A structurally valid temporary Collection fixture.",
+    category,
+    styles: ["minimal"],
+    industries: ["saas"],
+    features: ["responsive"],
+    frameworks: ["react"],
+    blocks,
+    metadata,
+  };
+}
+
+async function createCollection(collectionsRoot, options = {}) {
+  const collection = baseCollection(options);
+  const collectionRoot = path.join(
+    collectionsRoot,
+    collection.category,
+    collection.id,
+  );
+  await mkdir(collectionRoot, { recursive: true });
+  await writeFile(
+    path.join(collectionRoot, "registry.json"),
+    `${JSON.stringify(collection, null, 2)}\n`,
+  );
+  return collectionRoot;
 }
 
 function baseManifest({
@@ -168,8 +204,16 @@ function errorText(error) {
   return [error.message, ...(error.details ?? [])].join("\n");
 }
 
-async function createGeneratedRegistry(blocksRoot, registryRoot) {
-  await buildRegistry({ blocksRoot, outputRoot: registryRoot });
+async function createGeneratedRegistry(
+  blocksRoot,
+  registryRoot,
+  collectionsRoot,
+) {
+  await buildRegistry({
+    blocksRoot,
+    collectionsRoot,
+    outputRoot: registryRoot,
+  });
 }
 
 async function withPublishedRegistry(callback) {
@@ -191,6 +235,76 @@ async function withPublishedRegistry(callback) {
     });
   });
 }
+
+test("accepts and republishes a legacy block-only Registry tree", async () => {
+  await withFixture(async (blocksRoot) => {
+    await createBlock(blocksRoot);
+
+    await withRoots(async ({ registryRoot, outputRoot }) => {
+      await createGeneratedRegistry(blocksRoot, registryRoot);
+      const indexPath = path.join(registryRoot, "registry.json");
+      const index = await readJson(indexPath);
+      delete index.collections;
+      await writeJson(indexPath, index);
+      await rm(path.join(registryRoot, "collections"), {
+        recursive: true,
+        force: true,
+      });
+
+      const legacy = await loadPublicRegistry(registryRoot);
+      assert.equal(legacy.collections, undefined);
+      const result = await publishRegistry({ registryRoot, outputRoot });
+
+      assert.equal(result.collectionCount, 0);
+      assert.deepEqual((await readdir(outputRoot)).sort(), [
+        "blocks",
+        "registry.json",
+      ]);
+      assert.equal(
+        (await readJson(path.join(outputRoot, "registry.json"))).collections,
+        undefined,
+      );
+    });
+  });
+});
+
+test("publishes Collection metadata atomically and preserves source bytes", async () => {
+  await withFixture(async (blocksRoot) => {
+    await createBlock(blocksRoot);
+    const collectionsRoot = await mkdtemp(
+      path.join(tmpdir(), "auren-publish-collections-"),
+    );
+
+    try {
+      await createCollection(collectionsRoot);
+      await withRoots(async ({ registryRoot, outputRoot }) => {
+        await createGeneratedRegistry(
+          blocksRoot,
+          registryRoot,
+          collectionsRoot,
+        );
+        const registrySnapshot = await snapshotTree(registryRoot);
+        const result = await publishRegistry({ registryRoot, outputRoot });
+
+        assert.equal(result.blockCount, 1);
+        assert.equal(result.collectionCount, 1);
+        assert.equal(await snapshotTree(registryRoot), registrySnapshot);
+
+        const index = await readJson(path.join(outputRoot, "registry.json"));
+        const indexCollection = index.collections[0];
+        const detail = await readJson(
+          path.join(outputRoot, "collections/saas-minimal.json"),
+        );
+        collectionSchema.parse(indexCollection);
+        collectionSchema.parse(detail);
+        assert.deepEqual(indexCollection.blocks, ["hero-001"]);
+        assert.deepEqual(detail, indexCollection);
+      });
+    } finally {
+      await rm(collectionsRoot, { recursive: true, force: true });
+    }
+  });
+});
 
 test("publishes a schema-valid custom root without changing bytes or source", async () => {
   await withFixture(async (blocksRoot) => {
@@ -221,6 +335,7 @@ test("publishes a schema-valid custom root without changing bytes or source", as
       const result = await publishRegistry({ registryRoot, outputRoot });
 
       assert.equal(result.blockCount, 1);
+      assert.equal(result.collectionCount, 0);
       assert.equal(await snapshotTree(outputRoot), registrySnapshot);
       assert.equal(await snapshotTree(blocksRoot), sourceSnapshot);
 
@@ -321,6 +436,7 @@ test("rejects malformed and schema-invalid resources before replacement", async 
             metadata: {},
           },
         ],
+        collections: [],
       };
       await writeJson(path.join(registryRoot, "registry.json"), validIndex);
       await writeFile(path.join(registryRoot, "blocks/hero-001.json"), "{\n");
@@ -611,7 +727,10 @@ test("built commands publish the committed catalog without network or source mut
       ],
       { cwd: root },
     );
-    assert.match(buildResult.stdout, /Registry build completed: 11 blocks/);
+    assert.match(
+      buildResult.stdout,
+      /Registry build completed: 11 blocks and 1 collections/,
+    );
 
     const publishResult = await execFile(
       process.execPath,
@@ -626,12 +745,13 @@ test("built commands publish the committed catalog without network or source mut
     );
     assert.match(
       publishResult.stdout,
-      /Public Registry publication completed: 11 blocks/,
+      /Public Registry publication completed: 11 blocks and 1 collections/,
     );
 
     assert.equal(await snapshotTree(sourceRoot), sourceSnapshot);
     assert.deepEqual((await readdir(outputRoot)).sort(), [
       "blocks",
+      "collections",
       "registry.json",
     ]);
     assert.equal((await readdir(path.join(outputRoot, "blocks"))).length, 11);

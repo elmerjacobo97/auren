@@ -62,6 +62,14 @@ async function writeRegistryFixture(registryRoot) {
     ],
     metadata: {},
   };
+  const indexNavbar = {
+    ...indexElement,
+    id: "navbar-001",
+    name: "Product launch navbar",
+    description: "A responsive navigation bar.",
+    type: "navbar",
+    files: [{ path: "component.tsx", kind: "component" }],
+  };
   const detailElement = {
     ...indexElement,
     files: [
@@ -78,14 +86,54 @@ async function writeRegistryFixture(registryRoot) {
     ],
   };
 
+  const detailNavbar = {
+    ...indexNavbar,
+    files: [
+      {
+        path: "component.tsx",
+        kind: "component",
+        content: "export function Navbar() { return null; }\n",
+      },
+    ],
+  };
+  const collection = {
+    id: "saas-minimal",
+    name: "SaaS Minimal",
+    description: "A minimal SaaS collection.",
+    category: "marketing",
+    styles: ["minimal"],
+    industries: ["saas"],
+    features: ["responsive"],
+    frameworks: ["react"],
+    blocks: ["hero-001", "navbar-001"],
+    metadata: {},
+  };
+
   await mkdir(path.join(registryRoot, "blocks"), { recursive: true });
+  await mkdir(path.join(registryRoot, "collections"), { recursive: true });
   await writeFile(
     path.join(registryRoot, "registry.json"),
-    `${JSON.stringify({ schemaVersion: 1, blocks: [indexElement] }, null, 2)}\n`,
+    `${JSON.stringify(
+      {
+        schemaVersion: 1,
+        blocks: [indexElement, indexNavbar],
+        collections: [collection],
+      },
+      null,
+      2,
+    )}\n`,
   );
   await writeFile(
     path.join(registryRoot, "blocks/hero-001.json"),
     `${JSON.stringify(detailElement, null, 2)}\n`,
+  );
+  await writeFile(
+    path.join(registryRoot, "blocks/navbar-001.json"),
+    `${JSON.stringify(detailNavbar, null, 2)}\n`,
+  );
+  await writeFile(
+    path.join(registryRoot, "collections/saas-minimal.json"),
+    `${JSON.stringify(collection, null, 2)}\n`,
   );
 }
 
@@ -102,6 +150,8 @@ const root = process.argv[2];
 const resources = new Map([
   ["/registry.json", "registry.json"],
   ["/blocks/hero-001.json", "blocks/hero-001.json"],
+  ["/blocks/navbar-001.json", "blocks/navbar-001.json"],
+  ["/collections/saas-minimal.json", "collections/saas-minimal.json"],
 ]);
 const server = createServer(async (request, response) => {
   const relativePath = resources.get(request.url);
@@ -356,6 +406,49 @@ try {
       packageBefore
     ) {
       throw new Error("Built CLI add modified package.json");
+    }
+
+    const collectionAdd = runCliFrom(
+      consumerRoot,
+      "add",
+      "collection/saas-minimal",
+      "--force",
+      "--registry-url",
+      registryUrl,
+    );
+
+    if (collectionAdd.status !== 0 || collectionAdd.stderr !== "") {
+      throw new Error("Built CLI Collection add did not succeed cleanly");
+    }
+
+    for (const expected of [
+      "Added collection/saas-minimal",
+      "Collection: saas-minimal",
+      "Authored members:\n- hero-001\n- navbar-001",
+      "Resolved blocks:\n- hero-001\n- navbar-001",
+      "src/components/auren/hero-001/component.tsx",
+      "src/components/auren/navbar-001/component.tsx",
+    ]) {
+      if (!collectionAdd.stdout.includes(expected)) {
+        throw new Error(
+          `Built CLI Collection add output did not contain ${expected}`,
+        );
+      }
+    }
+
+    for (const relativePath of [
+      "src/components/auren/hero-001/component.tsx",
+      "src/components/auren/navbar-001/component.tsx",
+    ]) {
+      const filePath = path.join(consumerRoot, ...relativePath.split("/"));
+
+      try {
+        await readFile(filePath, "utf8");
+      } catch {
+        throw new Error(
+          `Built CLI Collection add did not create ${relativePath}`,
+        );
+      }
     }
   } finally {
     await rm(consumerRoot, { recursive: true, force: true });

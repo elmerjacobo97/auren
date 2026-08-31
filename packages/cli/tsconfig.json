@@ -18,6 +18,7 @@
       "@auren/core/search": ["../core/src/search/search.ts"],
       "@auren/registry": ["../registry/src/index.ts"],
       "@auren/schemas/catalog": ["../schemas/src/catalog/element-schema.ts"],
+      "@auren/schemas/collection": ["../schemas/src/collection/schema.ts"],
       "@auren/schemas/configuration": [
         "../schemas/src/configuration/schema.ts"
       ],

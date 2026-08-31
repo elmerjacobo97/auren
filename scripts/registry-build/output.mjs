@@ -9,10 +9,15 @@ import {
   writeFile,
 } from "node:fs/promises";
 import path from "node:path";
+import { collectionSchema as defaultCollectionSchema } from "@auren/schemas/collection";
 import { RegistryBuildError } from "./errors.mjs";
 import { validateGeneratedArtifacts } from "./catalog.mjs";
 
-export async function inspectExistingOutput(outputRoot, catalogElementSchema) {
+export async function inspectExistingOutput(
+  outputRoot,
+  catalogElementSchema,
+  collectionSchema = defaultCollectionSchema,
+) {
   let stat;
 
   try {
@@ -41,29 +46,35 @@ export async function inspectExistingOutput(outputRoot, catalogElementSchema) {
   }
 
   const topNames = new Set(topEntries.map((entry) => entry.name));
+  const hasCollectionsDirectory = topNames.has("collections");
+  const expectedTopEntryCount = hasCollectionsDirectory ? 3 : 2;
 
   if (
-    topNames.size !== 2 ||
+    topNames.size !== expectedTopEntryCount ||
     !topNames.has("registry.json") ||
     !topNames.has("blocks") ||
     topEntries.some(
       (entry) =>
         (entry.name === "registry.json" && !entry.isFile()) ||
-        (entry.name === "blocks" && !entry.isDirectory()),
+        (entry.name === "blocks" && !entry.isDirectory()) ||
+        (entry.name === "collections" && !entry.isDirectory()),
     )
   ) {
     throw new RegistryBuildError(
       `existing output root is not recognizable Registry Build output: ${displayPath(outputRoot)}`,
-      ["expected only registry.json and blocks/"],
+      ["expected registry.json, blocks/, and optional collections/"],
     );
   }
 
   const index = await readJson(path.join(outputRoot, "registry.json"));
+  const hasCollectionIndex = Object.hasOwn(index ?? {}, "collections");
 
   if (
     index?.schemaVersion !== 1 ||
     !Number.isInteger(index.schemaVersion) ||
-    !Array.isArray(index.blocks)
+    !Array.isArray(index.blocks) ||
+    hasCollectionIndex !== hasCollectionsDirectory ||
+    (hasCollectionIndex && !Array.isArray(index.collections))
   ) {
     throw new RegistryBuildError(
       `existing output root has an invalid Registry Build index: ${displayPath(outputRoot)}`,
@@ -88,11 +99,39 @@ export async function inspectExistingOutput(outputRoot, catalogElementSchema) {
   }
 
   details.sort((left, right) => compareStrings(left.id, right.id));
+
+  let collectionEntries;
+
+  if (hasCollectionsDirectory) {
+    const collectionRoot = path.join(outputRoot, "collections");
+    const entries = await readdir(collectionRoot, { withFileTypes: true });
+    collectionEntries = [];
+
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith(".json")) {
+        throw new RegistryBuildError(
+          `existing output contains an unexpected Collection detail entry: ${displayPath(path.join(collectionRoot, entry.name))}`,
+        );
+      }
+
+      const id = entry.name.slice(0, -".json".length);
+      const payload = await readJson(path.join(collectionRoot, entry.name));
+      collectionEntries.push({ id, detail: payload });
+    }
+
+    collectionEntries.sort((left, right) => compareStrings(left.id, right.id));
+  }
+
   validateGeneratedArtifacts({
     catalogElementSchema,
     index,
-    entries: details.map(({ id, detail }) => ({ id, detail })),
+    entries: details,
     expectedIds: index.blocks.map((block) => block?.id),
+    collectionSchema,
+    collectionEntries,
+    expectedCollectionIds: index.collections?.map(
+      (collection) => collection?.id,
+    ),
   });
 
   return { exists: true, recognized: true, empty: false };
@@ -102,6 +141,7 @@ export async function stageAndReplaceOutput({
   outputRoot,
   artifacts,
   catalogElementSchema,
+  collectionSchema = defaultCollectionSchema,
   existingOutput,
 }) {
   const parentDirectory = path.dirname(outputRoot);
@@ -118,6 +158,7 @@ export async function stageAndReplaceOutput({
       stagingRoot,
       artifacts,
       catalogElementSchema,
+      collectionSchema,
     });
     await replaceOutputDirectory({
       stagingRoot,
@@ -134,11 +175,20 @@ export async function stageAndReplaceOutput({
 
 async function writeStagedArtifacts(stagingRoot, artifacts) {
   const blocksRoot = path.join(stagingRoot, "blocks");
+  const collectionsRoot = path.join(stagingRoot, "collections");
   await mkdir(blocksRoot);
+  await mkdir(collectionsRoot);
   await writeJson(path.join(stagingRoot, "registry.json"), artifacts.index);
 
   for (const entry of artifacts.entries) {
     await writeJson(path.join(blocksRoot, `${entry.id}.json`), entry.detail);
+  }
+
+  for (const entry of artifacts.collections ?? []) {
+    await writeJson(
+      path.join(collectionsRoot, `${entry.id}.json`),
+      entry.detail,
+    );
   }
 }
 
@@ -146,18 +196,21 @@ async function validateStagedOutput({
   stagingRoot,
   artifacts,
   catalogElementSchema,
+  collectionSchema,
 }) {
   const topEntries = await readdir(stagingRoot, { withFileTypes: true });
   const topNames = new Set(topEntries.map((entry) => entry.name));
 
   if (
-    topNames.size !== 2 ||
+    topNames.size !== 3 ||
     !topNames.has("registry.json") ||
     !topNames.has("blocks") ||
+    !topNames.has("collections") ||
     topEntries.some(
       (entry) =>
         (entry.name === "registry.json" && !entry.isFile()) ||
-        (entry.name === "blocks" && !entry.isDirectory()),
+        (entry.name === "blocks" && !entry.isDirectory()) ||
+        (entry.name === "collections" && !entry.isDirectory()),
     )
   ) {
     throw new RegistryBuildError(
@@ -184,12 +237,35 @@ async function validateStagedOutput({
     });
   }
 
+  const collectionDetailEntries = await readdir(
+    path.join(stagingRoot, "collections"),
+    { withFileTypes: true },
+  );
+  const collectionEntries = [];
+
+  for (const entry of collectionDetailEntries) {
+    if (!entry.isFile() || !entry.name.endsWith(".json")) {
+      throw new RegistryBuildError(
+        `staged Registry output contains an unexpected Collection detail entry: ${entry.name}`,
+      );
+    }
+
+    collectionEntries.push({
+      id: entry.name.slice(0, -".json".length),
+      detail: await readJson(path.join(stagingRoot, "collections", entry.name)),
+    });
+  }
+
   details.sort((left, right) => compareStrings(left.id, right.id));
+  collectionEntries.sort((left, right) => compareStrings(left.id, right.id));
   validateGeneratedArtifacts({
     catalogElementSchema,
     index,
     entries: details,
     expectedIds: artifacts.entries.map(({ id }) => id),
+    collectionSchema,
+    collectionEntries,
+    expectedCollectionIds: artifacts.collections.map(({ id }) => id),
   });
 }
 

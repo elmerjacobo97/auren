@@ -1,7 +1,12 @@
 import type { LocalRegistry } from "@auren/registry";
 import type { CatalogElement } from "@auren/schemas/catalog";
+import type { Collection } from "@auren/schemas/collection";
 import { subset, validRange } from "semver";
-import { resolveBlock } from "../resolve/resolve.js";
+import {
+  resolveBlock,
+  resolveCollection,
+  type CollectionResolution,
+} from "../resolve/resolve.js";
 
 export type PackageDependency = {
   name: string;
@@ -19,6 +24,16 @@ export type DependencyPlan = {
 };
 
 export type ProjectDependencyResolution = DependencyPlan & {
+  satisfied: readonly PackageDependency[];
+  missing: readonly PackageDependency[];
+};
+
+export type CollectionDependencyPlan = DependencyPlan & {
+  collection: Collection;
+  members: readonly CatalogElement[];
+};
+
+export type CollectionProjectDependencyResolution = CollectionDependencyPlan & {
   satisfied: readonly PackageDependency[];
   missing: readonly PackageDependency[];
 };
@@ -104,6 +119,42 @@ export function createDependencyPlan(
   };
 }
 
+export function collectCollectionPackageDependencies(
+  registry: LocalRegistry,
+  id: string,
+): readonly PackageDependency[] {
+  return createCollectionDependencyPlan(registry, id).packages;
+}
+
+export function collectCollectionShadcnDependencies(
+  registry: LocalRegistry,
+  id: string,
+): readonly ShadcnDependency[] {
+  return createCollectionDependencyPlan(registry, id).shadcn;
+}
+
+export function createCollectionDependencyPlan(
+  registry: LocalRegistry,
+  id: string,
+): CollectionDependencyPlan {
+  const resolved = resolveCollection(registry, id);
+  return createCollectionDependencyPlanFromResolution(resolved);
+}
+
+function createCollectionDependencyPlanFromResolution(
+  resolved: CollectionResolution,
+): CollectionDependencyPlan {
+  const requirements = collectDependencyRequirements(resolved.blocks);
+
+  return {
+    collection: resolved.collection,
+    members: resolved.members,
+    auren: resolved.blocks.map((element) => element.id),
+    packages: requirements.packages,
+    shadcn: requirements.shadcn,
+  };
+}
+
 function collectDependencyRequirements(elements: readonly CatalogElement[]): {
   readonly packages: readonly PackageDependency[];
   readonly shadcn: readonly ShadcnDependency[];
@@ -150,10 +201,35 @@ export function resolveProjectDependencies(
   projectDependencies: Readonly<Record<string, string>> = {},
 ): ProjectDependencyResolution {
   const plan = createDependencyPlan(registry, id);
+  return {
+    ...plan,
+    ...reconcilePackages(plan.packages, projectDependencies),
+  };
+}
+
+export function resolveProjectCollectionDependencies(
+  registry: LocalRegistry,
+  id: string,
+  projectDependencies: Readonly<Record<string, string>> = {},
+): CollectionProjectDependencyResolution {
+  const plan = createCollectionDependencyPlan(registry, id);
+  return {
+    ...plan,
+    ...reconcilePackages(plan.packages, projectDependencies),
+  };
+}
+
+function reconcilePackages(
+  packages: readonly PackageDependency[],
+  projectDependencies: Readonly<Record<string, string>>,
+): {
+  readonly satisfied: readonly PackageDependency[];
+  readonly missing: readonly PackageDependency[];
+} {
   const satisfied: PackageDependency[] = [];
   const missing: PackageDependency[] = [];
 
-  for (const dependency of plan.packages) {
+  for (const dependency of packages) {
     if (coversRange(projectDependencies[dependency.name], dependency.version)) {
       satisfied.push(dependency);
     } else {
@@ -161,11 +237,7 @@ export function resolveProjectDependencies(
     }
   }
 
-  return {
-    ...plan,
-    satisfied,
-    missing,
-  };
+  return { satisfied, missing };
 }
 
 export function validatePackageDependency(dependency: PackageDependency): void {

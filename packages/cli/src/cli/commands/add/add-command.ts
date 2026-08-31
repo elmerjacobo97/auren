@@ -7,6 +7,9 @@ import {
 } from "../../catalog/remote-catalog-source.js";
 import type { Terminal } from "../../terminal/terminal.js";
 import { runAddFlow } from "./add-flow.js";
+import { parseAddSelector } from "./add-selector.js";
+
+export { parseAddSelector } from "./add-selector.js";
 import {
   createPackageInstaller,
   type PackageInstaller,
@@ -29,19 +32,20 @@ export function registerAddCommand(
 ): void {
   program
     .command("add")
-    .description("Install a catalog element into the current project")
-    .usage("<id>")
-    .argument("<id>", "catalog element ID")
+    .description("Install a block or Collection into the current project")
+    .usage("<selector>")
+    .argument("<selector>", "block ID or collection/<collection-id>")
     .option("--force", "replace existing planned files")
     .option("--registry-url <url>", "remote Registry document-root URL")
     .action(
       async (
-        id: string,
+        selector: string,
         actionOptions: { force?: boolean; registryUrl?: string },
       ) => {
+        parseAddSelector(selector);
         const status = await runAddFlow({
           projectDir: process.cwd(),
-          id,
+          id: selector,
           force: actionOptions.force ?? false,
           terminal,
           source:

@@ -34,7 +34,7 @@ export async function main(argumentsList = process.argv.slice(2)) {
       : result.outputRoot;
 
     process.stdout.write(
-      `Public Registry publication completed: ${result.blockCount} blocks written to ${displayOutput}\n`,
+      `Public Registry publication completed: ${result.blockCount} blocks and ${result.collectionCount} collections written to ${displayOutput}\n`,
     );
     return true;
   } catch (error) {
