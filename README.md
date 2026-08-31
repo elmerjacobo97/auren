@@ -74,7 +74,13 @@ npx auren add hero-001       # Install a block
 npx auren add collection/saas-minimal  # Install a collection
 ```
 
-The CLI uses `https://auren.elmerjacobo.dev/` as the default Registry URL. Override with `--registry-url` or `AUREN_REGISTRY_URL`.
+The CLI uses `https://registry.auren.elmerjacobo.dev/` as the default Registry URL. Override with `--registry-url` or `AUREN_REGISTRY_URL`.
+
+## Deployment
+
+- `https://auren.elmerjacobo.dev` hosts the public catalog Web application.
+- `https://registry.auren.elmerjacobo.dev` hosts the static Registry document root.
+- The `auren` CLI is published to npm only from `vX.Y.Z` release tags.
 
 ## Registry Contract
 

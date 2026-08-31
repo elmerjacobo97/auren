@@ -28,11 +28,11 @@ const WORKSPACE_ROOT = resolve(CLI_ROOT, "../..");
 const DIST_NPM_PKG = resolve(WORKSPACE_ROOT, "dist/npm-pkg");
 
 // ---------------------------------------------------------------------------
-// Package metadata — bump NPM_VERSION before each publish
+// Package metadata — release workflows provide AUREN_NPM_VERSION from the tag.
 // ---------------------------------------------------------------------------
 
 const NPM_NAME = "auren";
-const NPM_VERSION = "0.1.2";
+const NPM_VERSION = process.env.AUREN_NPM_VERSION ?? "0.1.2";
 const NPM_DESCRIPTION =
   "Discover and install versioned UI components and block catalogs.";
 
@@ -55,57 +55,42 @@ const CORE_DIST = resolve(WORKSPACE_ROOT, "packages/core/dist");
 const SCHEMAS_DIST = resolve(WORKSPACE_ROOT, "packages/schemas/dist");
 const REGISTRY_DIST = resolve(WORKSPACE_ROOT, "packages/registry/dist");
 
-function aliases(...subpaths) {
-  return Object.fromEntries(
-    subpaths.map((sub) => [
-      `@auren/${sub}`,
-      resolve(
-        CORE_DIST,
-        sub.startsWith("load/") ? sub.replace("load/", "load/") : sub,
-      ),
-    ]),
-  );
-}
-
 const WORKSPACE_ALIASES = {
   // @auren/core subpath exports
-  [`@auren/core/search`]: resolve(CORE_DIST, "search/search.js"),
-  [`@auren/core/resolve`]: resolve(CORE_DIST, "resolve/resolve.js"),
-  [`@auren/core/dependencies`]: resolve(
+  "@auren/core/search": resolve(CORE_DIST, "search/search.js"),
+  "@auren/core/resolve": resolve(CORE_DIST, "resolve/resolve.js"),
+  "@auren/core/dependencies": resolve(
     CORE_DIST,
     "dependencies/dependency-plan.js",
   ),
-  [`@auren/core/load/metadata`]: resolve(
+  "@auren/core/load/metadata": resolve(
     CORE_DIST,
     "load/load-block-metadata.js",
   ),
-  [`@auren/core/load/files`]: resolve(CORE_DIST, "load/load-block-files.js"),
-  [`@auren/core/compatibility`]: resolve(
+  "@auren/core/load/files": resolve(CORE_DIST, "load/load-block-files.js"),
+  "@auren/core/compatibility": resolve(
     CORE_DIST,
     "compatibility/compatibility.js",
   ),
-  [`@auren/core/project`]: resolve(CORE_DIST, "project/detect-project.js"),
-  [`@auren/core/configuration`]: resolve(
+  "@auren/core/project": resolve(CORE_DIST, "project/detect-project.js"),
+  "@auren/core/configuration": resolve(
     CORE_DIST,
     "configuration/configuration.js",
   ),
   // @auren/schemas subpath exports
-  [`@auren/schemas/catalog`]: resolve(
-    SCHEMAS_DIST,
-    "catalog/element-schema.js",
-  ),
-  [`@auren/schemas/element`]: resolve(
+  "@auren/schemas/catalog": resolve(SCHEMAS_DIST, "catalog/element-schema.js"),
+  "@auren/schemas/element": resolve(
     SCHEMAS_DIST,
     "element/structural-schema.js",
   ),
-  [`@auren/schemas/taxonomy`]: resolve(SCHEMAS_DIST, "taxonomy/schema.js"),
-  [`@auren/schemas/configuration`]: resolve(
+  "@auren/schemas/taxonomy": resolve(SCHEMAS_DIST, "taxonomy/schema.js"),
+  "@auren/schemas/configuration": resolve(
     SCHEMAS_DIST,
     "configuration/schema.js",
   ),
-  [`@auren/schemas/collection`]: resolve(SCHEMAS_DIST, "collection/schema.js"),
+  "@auren/schemas/collection": resolve(SCHEMAS_DIST, "collection/schema.js"),
   // @auren/registry root export
-  [`@auren/registry`]: resolve(REGISTRY_DIST, "index.js"),
+  "@auren/registry": resolve(REGISTRY_DIST, "index.js"),
 };
 
 // ---------------------------------------------------------------------------
@@ -205,7 +190,7 @@ const packageManifest = {
   license: "MIT",
   repository: {
     type: "git",
-    url: "git+https://github.com/elmerjacobo/auren.git",
+    url: "git+https://github.com/elmerjacobo97/auren.git",
   },
 };
 

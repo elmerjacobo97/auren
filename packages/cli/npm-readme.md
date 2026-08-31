@@ -28,7 +28,7 @@ auren add collection/saas-minimal  # Install a collection
 
 ## Registry
 
-The CLI uses `https://auren.elmerjacobo.dev/` as the default Registry URL. Override with:
+The CLI uses `https://registry.auren.elmerjacobo.dev/` as the default Registry URL. Override with:
 
 ```bash
 auren search hero --registry-url https://staging.example.com/

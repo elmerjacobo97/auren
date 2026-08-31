@@ -1,6 +1,6 @@
 import { createInvalidEndpointError } from "./catalog-errors.js";
 
-export const DEFAULT_REGISTRY_URL = "https://auren.elmerjacobo.dev/";
+export const DEFAULT_REGISTRY_URL = "https://registry.auren.elmerjacobo.dev/";
 export const REGISTRY_INDEX_RESOURCE = "registry.json";
 export const REGISTRY_DETAIL_DIRECTORY = "blocks/";
 

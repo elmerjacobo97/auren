@@ -1,7 +1,7 @@
 import type { RemoteFetch } from "./remote-catalog-transport.js";
 import { InvalidRegistryUrlError } from "./remote-catalog-errors.js";
 
-export const DEFAULT_REGISTRY_URL = "https://auren.elmerjacobo.dev";
+export const DEFAULT_REGISTRY_URL = "https://registry.auren.elmerjacobo.dev";
 export const DEFAULT_REMOTE_CATALOG_TIMEOUT_MS = 10_000;
 export const MAX_REMOTE_CATALOG_TIMEOUT_MS = 60_000;
 

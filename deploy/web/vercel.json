@@ -1,0 +1,21 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "redirects": [
+    {
+      "source": "/registry.json",
+      "destination": "https://registry.auren.elmerjacobo.dev/registry.json",
+      "permanent": true
+    },
+    {
+      "source": "/blocks/:id.json",
+      "destination": "https://registry.auren.elmerjacobo.dev/blocks/:id.json",
+      "permanent": true
+    },
+    {
+      "source": "/collections/:id.json",
+      "destination": "https://registry.auren.elmerjacobo.dev/collections/:id.json",
+      "permanent": true
+    }
+  ],
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+}

@@ -3,6 +3,9 @@ name: Release
 on:
   push:
     branches: [main]
+    tags:
+      - "v*"
+  workflow_dispatch:
 
 jobs:
   check:
@@ -28,13 +31,35 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
 
+  validate-vercel:
+    name: Validate Vercel credentials
+    runs-on: ubuntu-latest
+    needs: check
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Verify Vercel account
+        run: |
+          test -n "$VERCEL_TOKEN" || { echo "::error::VERCEL_TOKEN is empty"; exit 1; }
+          test -n "$VERCEL_ORG_ID" || { echo "::error::VERCEL_ORG_ID is empty"; exit 1; }
+          npx --yes vercel@53.2.0 whoami --token "$VERCEL_TOKEN" --no-color
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_TELEMETRY_DISABLED: "1"
+
   deploy-registry:
     name: Deploy Registry to Vercel
     runs-on: ubuntu-latest
-    needs: check
+    needs: [check, validate-vercel]
+    if: github.ref == 'refs/heads/main'
     environment:
       name: production
-      url: https://auren.elmerjacobo.dev
+      url: https://registry.auren.elmerjacobo.dev
     steps:
       - uses: actions/checkout@v4
 
@@ -51,22 +76,58 @@ jobs:
       - run: pnpm registry:publish
 
       - name: Deploy Registry to Vercel
-        working-directory: dist/public-registry
         run: |
-          test -n "$VERCEL_TOKEN" || { echo "::error::VERCEL_TOKEN is empty"; exit 1; }
-          test -n "$VERCEL_ORG_ID" || { echo "::error::VERCEL_ORG_ID is empty"; exit 1; }
           test -n "$VERCEL_PROJECT_ID" || { echo "::error::VERCEL_PROJECT_ID is empty"; exit 1; }
-          npx --yes vercel@53.2.0 whoami --token "$VERCEL_TOKEN" --no-color
-          npx --yes vercel@53.2.0 deploy --prod --token "$VERCEL_TOKEN" --yes
+          deployment_json="$(npx --yes vercel@53.2.0 deploy dist/public-registry --prod --token "$VERCEL_TOKEN" --yes --local-config deploy/registry/vercel.json --format json --no-color)"
+          deployment_url="$(node -e 'const deployment = JSON.parse(process.argv[1]); if (!deployment.url) throw new Error("deployment URL missing"); process.stdout.write(deployment.url);' "$deployment_json")"
+          npx --yes vercel@53.2.0 alias set "$deployment_url" registry.auren.elmerjacobo.dev --scope "$VERCEL_ORG_ID" --no-color
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TELEMETRY_DISABLED: "1"
+
+  deploy-web:
+    name: Deploy Web to Vercel
+    runs-on: ubuntu-latest
+    needs: [check, validate-vercel]
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: https://auren.elmerjacobo.dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.21.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @auren/schemas build
+      - run: pnpm --filter @auren/web build
+
+      - name: Deploy Web to Vercel
+        run: |
+          test -n "$VERCEL_PROJECT_ID" || { echo "::error::VERCEL_WEB_PROJECT_ID is empty"; exit 1; }
+          deployment_json="$(npx --yes vercel@53.2.0 deploy apps/web/dist --prod --token "$VERCEL_TOKEN" --yes --local-config deploy/web/vercel.json --format json --no-color)"
+          deployment_url="$(node -e 'const deployment = JSON.parse(process.argv[1]); if (!deployment.url) throw new Error("deployment URL missing"); process.stdout.write(deployment.url);' "$deployment_json")"
+          npx --yes vercel@53.2.0 alias set "$deployment_url" auren.elmerjacobo.dev --scope "$VERCEL_ORG_ID" --no-color
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_WEB_PROJECT_ID }}
+          VERCEL_TELEMETRY_DISABLED: "1"
 
   publish-npm:
     name: Publish CLI to npm
     runs-on: ubuntu-latest
     needs: check
+    if: startsWith(github.ref, 'refs/tags/v')
     environment: production
     steps:
       - uses: actions/checkout@v4
@@ -82,6 +143,15 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       - run: pnpm install --frozen-lockfile
+
+      - name: Set npm version from release tag
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Release tags must use the v<semver> format"
+            exit 1
+          fi
+          echo "AUREN_NPM_VERSION=$version" >> "$GITHUB_ENV"
 
       # Build all workspace packages first
       - run: pnpm --filter @auren/schemas build

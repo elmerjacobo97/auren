@@ -306,7 +306,7 @@ auren list
 El CLI consulta el Registry público estático por defecto. Puede usarse
 `--registry-url <url>` por comando o `AUREN_REGISTRY_URL` por proceso; la
 precedencia es opción de comando, variable de entorno y, por último,
-`https://auren.elmerjacobo.dev/`.
+`https://registry.auren.elmerjacobo.dev/`.
 
 Ejemplos:
 
@@ -442,9 +442,9 @@ El catálogo se publica como un document root estático y el CLI puede consultar
 directamente estos recursos:
 
 ```text
-https://auren.elmerjacobo.dev/registry.json
-https://auren.elmerjacobo.dev/blocks/hero-001.json
-https://auren.elmerjacobo.dev/blocks/pricing-001.json
+https://registry.auren.elmerjacobo.dev/registry.json
+https://registry.auren.elmerjacobo.dev/blocks/hero-001.json
+https://registry.auren.elmerjacobo.dev/blocks/pricing-001.json
 ```
 
 `info` y `search` solicitan solo `registry.json`; `add` solicita los detalles
