@@ -17,6 +17,7 @@ coverage/
 
 # Coding agents
 .commandcode/
+.codegraph/
 .cursorrules
 .cursors/
 
