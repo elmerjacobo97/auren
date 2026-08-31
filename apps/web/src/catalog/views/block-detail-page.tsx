@@ -1,10 +1,10 @@
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import type { CatalogElement } from "@auren/schemas/catalog";
+import { BlockPlayground } from "../components/block-playground.js";
 import { CatalogLoadingState } from "../components/catalog-loading-state.js";
 import { CatalogUnavailableState } from "../components/catalog-unavailable-state.js";
 import { CatalogClassificationList } from "../components/catalog-classification-list.js";
-import { PreviewAdapter } from "../preview/preview-adapter.js";
 import {
   useBlockDetail,
   type BlockDetailViewState,
@@ -163,14 +163,16 @@ function BlockDetailContent({ block }: { readonly block: CatalogElement }) {
         </p>
       </header>
 
-      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(18rem,0.7fr)] lg:items-start">
-        <PreviewSection block={block} />
-        <MetadataSection block={block} />
-      </div>
+      <BlockPlayground
+        block={block}
+        codePanel={<SourceSection block={block} />}
+        installPanel={<InstallSection id={block.id} />}
+      />
 
-      <DependenciesSection block={block} />
-      <SourceSection block={block} />
-      <InstallSection id={block.id} />
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-start">
+        <MetadataSection block={block} />
+        <DependenciesSection block={block} />
+      </div>
     </div>
   );
 }
@@ -185,17 +187,6 @@ function BlockBackLink() {
         ← Back to Blocks
       </Link>
     </nav>
-  );
-}
-
-function PreviewSection({ block }: { readonly block: CatalogElement }) {
-  return (
-    <section aria-labelledby="block-preview-heading" className="min-w-0">
-      <SectionHeading id="block-preview-heading" title="Preview" />
-      <div className="mt-4 min-w-0">
-        <PreviewAdapter block={block} />
-      </div>
-    </section>
   );
 }
 

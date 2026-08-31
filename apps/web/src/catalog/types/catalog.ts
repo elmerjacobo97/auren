@@ -49,4 +49,5 @@ export interface CatalogSection {
   readonly label: string;
   readonly path: CatalogSectionPath;
   readonly description: string;
+  readonly availability: "available" | "coming-soon";
 }

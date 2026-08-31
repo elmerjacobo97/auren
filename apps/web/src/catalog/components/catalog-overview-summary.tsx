@@ -20,12 +20,11 @@ export function CatalogOverviewSummary({
             The index is the contract
           </p>
           <p className="mt-3 max-w-2xl font-serif text-2xl leading-tight text-white sm:text-3xl">
-            Browse the metadata first. Preview and installation belong to the
-            next layer.
+            Find a starting point, then take it into your project.
           </p>
           <p className="mt-4 max-w-xl text-sm leading-6 text-[#c5d4c5]">
-            Every card below comes from the public Registry index and is
-            validated before it reaches the page.
+            The count is the live Registry snapshot. Each published block has a
+            detail view with preview, source, dependencies, and installation.
           </p>
         </div>
         <aside className="rounded-2xl border border-[#ccd7cc] bg-[#eaf2e5] p-6 dark:border-slate-800 dark:bg-slate-900">

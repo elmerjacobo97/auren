@@ -79,6 +79,69 @@ describe("createPreviewProject", () => {
     expect(result.project.dependencies["lucide-react"]).toBe("^0.468.0");
     expect(result.project.dependencies.tailwindcss).toBe("4.3.3");
     expect(result.project.files["/index.tsx"]?.code).toContain("BlockModule");
+    expect(result.project.files["/index.tsx"]?.code).toContain(
+      "createRoot(rootElement).render(createElement(BlockPreview))",
+    );
+    expect(result.project.files["/index.tsx"]?.code).toContain(
+      'import "./styles.css"',
+    );
+  });
+
+  it("supports default props with nested values and standard pass-through props", () => {
+    const block = createPreviewBlock(
+      `export function Hero({
+  content = { title: "Launch", actions: ["Explore", "Save"] },
+  renderAction = () => ({ label: "Explore", href: "#" }),
+  children,
+  className,
+  id,
+  ...rest
+}: { content?: object; renderAction?: () => object }) {
+  return <section id={id} className={className}>{children ?? rest.content}</section>;
+}
+`,
+    );
+
+    expect(createPreviewProject(block)).toMatchObject({ status: "supported" });
+  });
+
+  it("keeps a genuinely required destructured prop unsupported", () => {
+    const block = createPreviewBlock(
+      `export function Hero({ title, ...rest }: { title: string }) {
+  return <h1>{title}</h1>;
+}
+`,
+    );
+
+    expect(createPreviewProject(block)).toEqual({
+      status: "unsupported",
+      reason: "required-props",
+    });
+  });
+
+  it("supports props resolved from a local fallback object", () => {
+    const block = createPreviewBlock(
+      `const defaultBrand = { name: "Auren" };
+export function Navbar({ brand }: { brand?: { name: string } }) {
+  const resolvedBrand = { ...defaultBrand, ...brand };
+  return <nav>{resolvedBrand.name}</nav>;
+}
+`,
+    );
+
+    expect(createPreviewProject(block)).toMatchObject({ status: "supported" });
+  });
+
+  it("supports props marked optional by a shared type", () => {
+    const block = createPreviewBlock(
+      `interface HeroProps { active?: boolean }
+export function Hero({ active }: HeroProps) {
+  return <h1>{active ? "Active" : "Idle"}</h1>;
+}
+`,
+    );
+
+    expect(createPreviewProject(block)).toMatchObject({ status: "supported" });
   });
 
   it.each([

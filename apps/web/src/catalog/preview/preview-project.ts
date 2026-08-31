@@ -71,7 +71,9 @@ export function createPreviewProject(
 
   const files: Record<string, PreviewFile> = {
     "/index.tsx": { code: createPreviewWrapper(), active: true },
-    "/styles.css": { code: '@import "tailwindcss";' },
+    "/styles.css": {
+      code: '@import "tailwindcss";',
+    },
   };
 
   for (const file of block.files) {
@@ -109,7 +111,11 @@ export function createPreviewProject(
     return unsupported("missing-export");
   }
 
-  if (hasRequiredRuntimeProps(componentSource)) {
+  const typeSource = block.files
+    .map((file) => (typeof file.content === "string" ? file.content : ""))
+    .join("\n");
+
+  if (hasRequiredRuntimeProps(componentSource, typeSource)) {
     return unsupported("required-props");
   }
 
@@ -247,43 +253,250 @@ function hasRenderableExport(source: string): boolean {
   );
 }
 
-function hasRequiredRuntimeProps(source: string): boolean {
-  const parameterMatches = [
-    source.match(
-      /\bexport\s+(?:default\s+)?(?:async\s+)?function(?:\s+[A-Za-z_$][\w$]*)?\s*\(\s*\{([\s\S]*?)\}/,
-    ),
-    source.match(
-      /\bexport\s+(?:const|let|var)\s+[A-Za-z_$][\w$]*\s*=\s*(?:async\s*)?\(\s*\{([\s\S]*?)\}/,
-    ),
-    source.match(/\bexport\s+default\s+(?:async\s+)?\(\s*\{([\s\S]*?)\}/),
+function hasRequiredRuntimeProps(source: string, typeSource = source): boolean {
+  const parameterPatterns = [
+    /\bexport\s+(?:default\s+)?(?:async\s+)?function(?:\s+[A-Za-z_$][\w$]*)?\s*\(\s*\{/g,
+    /\bexport\s+(?:const|let|var)\s+[A-Za-z_$][\w$]*\s*=\s*(?:async\s*)?\(\s*\{/g,
+    /\bexport\s+default\s+(?:async\s+)?\(\s*\{/g,
   ];
 
-  return parameterMatches.some(
-    (match) => match?.[1] !== undefined && hasRequiredProperty(match[1]),
+  return parameterPatterns.some((pattern) =>
+    Array.from(source.matchAll(pattern)).some((match) => {
+      const openingBraceIndex = (match.index ?? 0) + match[0].lastIndexOf("{");
+      const parameterBody = readBalancedBlock(
+        source,
+        openingBraceIndex,
+        "{",
+        "}",
+      );
+
+      return (
+        parameterBody !== null &&
+        hasRequiredProperty(parameterBody.content, source, typeSource)
+      );
+    }),
   );
 }
 
-function hasRequiredProperty(properties: string): boolean {
-  return properties
-    .split(",")
+function hasRequiredProperty(
+  properties: string,
+  source: string,
+  typeSource: string,
+): boolean {
+  return splitTopLevel(properties, ",")
     .map((property) => property.trim())
     .some((property) => {
-      if (
-        property.length === 0 ||
-        property.startsWith("...") ||
-        property.includes("=")
-      ) {
+      if (property.length === 0 || property.startsWith("...")) {
         return false;
       }
 
-      const propertyName = property.match(/^[A-Za-z_$][\w$]*/)?.[0];
-      return !["children", "className", "id"].includes(propertyName ?? "");
+      if (splitTopLevel(property, "=").length > 1) {
+        return false;
+      }
+
+      const propertyMatch = property.match(
+        /^([A-Za-z_$][\w$]*)(\?)?(?:\s*[:]|\s*$)/,
+      );
+      const propertyName = propertyMatch?.[1];
+
+      return (
+        propertyMatch?.[2] !== "?" &&
+        !hasLocalDefault(propertyName, source) &&
+        !hasOptionalTypeProperty(propertyName, typeSource) &&
+        !["children", "className", "id"].includes(propertyName ?? "")
+      );
     });
+}
+
+function hasOptionalTypeProperty(
+  propertyName: string | undefined,
+  source: string,
+) {
+  if (propertyName === undefined) {
+    return false;
+  }
+
+  return new RegExp(`\\b${propertyName}\\s*\\?\\s*:`).test(source);
+}
+
+function hasLocalDefault(propertyName: string | undefined, source: string) {
+  if (propertyName === undefined) {
+    return false;
+  }
+
+  const capitalizedName = `${propertyName[0]?.toUpperCase() ?? ""}${propertyName.slice(1)}`;
+
+  return (
+    new RegExp(`\\.\\.\\.\\s*default${capitalizedName}\\b`).test(source) &&
+    new RegExp(`\\.\\.\\.\\s*${propertyName}\\b`).test(source)
+  );
+}
+
+interface BalancedBlock {
+  readonly content: string;
+}
+
+function readBalancedBlock(
+  source: string,
+  openingIndex: number,
+  openingCharacter: string,
+  closingCharacter: string,
+): BalancedBlock | null {
+  let depth = 0;
+  let quote: "'" | '"' | "`" | null = null;
+  let lineComment = false;
+  let blockComment = false;
+
+  for (let index = openingIndex; index < source.length; index += 1) {
+    const character = source[index];
+    const nextCharacter = source[index + 1];
+
+    if (lineComment) {
+      if (character === "\n") {
+        lineComment = false;
+      }
+      continue;
+    }
+
+    if (blockComment) {
+      if (character === "*" && nextCharacter === "/") {
+        blockComment = false;
+        index += 1;
+      }
+      continue;
+    }
+
+    if (quote !== null) {
+      if (character === "\\") {
+        index += 1;
+      } else if (character === quote) {
+        quote = null;
+      }
+      continue;
+    }
+
+    if (character === "/" && nextCharacter === "/") {
+      lineComment = true;
+      index += 1;
+      continue;
+    }
+
+    if (character === "/" && nextCharacter === "*") {
+      blockComment = true;
+      index += 1;
+      continue;
+    }
+
+    if (character === "'" || character === '"' || character === "`") {
+      quote = character;
+      continue;
+    }
+
+    if (character === openingCharacter) {
+      depth += 1;
+      continue;
+    }
+
+    if (character === closingCharacter) {
+      depth -= 1;
+      if (depth === 0) {
+        return {
+          content: source.slice(openingIndex + 1, index),
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
+function splitTopLevel(source: string, separator: string): string[] {
+  const parts: string[] = [];
+  let startIndex = 0;
+  let parentheses = 0;
+  let brackets = 0;
+  let braces = 0;
+  let quote: "'" | '"' | "`" | null = null;
+  let lineComment = false;
+  let blockComment = false;
+
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index];
+    const nextCharacter = source[index + 1];
+
+    if (lineComment) {
+      if (character === "\n") {
+        lineComment = false;
+      }
+      continue;
+    }
+
+    if (blockComment) {
+      if (character === "*" && nextCharacter === "/") {
+        blockComment = false;
+        index += 1;
+      }
+      continue;
+    }
+
+    if (quote !== null) {
+      if (character === "\\") {
+        index += 1;
+      } else if (character === quote) {
+        quote = null;
+      }
+      continue;
+    }
+
+    if (character === "/" && nextCharacter === "/") {
+      lineComment = true;
+      index += 1;
+      continue;
+    }
+
+    if (character === "/" && nextCharacter === "*") {
+      blockComment = true;
+      index += 1;
+      continue;
+    }
+
+    if (character === "'" || character === '"' || character === "`") {
+      quote = character;
+      continue;
+    }
+
+    if (character === "(") {
+      parentheses += 1;
+    } else if (character === ")") {
+      parentheses -= 1;
+    } else if (character === "[") {
+      brackets += 1;
+    } else if (character === "]") {
+      brackets -= 1;
+    } else if (character === "{") {
+      braces += 1;
+    } else if (character === "}") {
+      braces -= 1;
+    } else if (
+      character === separator &&
+      parentheses === 0 &&
+      brackets === 0 &&
+      braces === 0
+    ) {
+      parts.push(source.slice(startIndex, index));
+      startIndex = index + 1;
+    }
+  }
+
+  parts.push(source.slice(startIndex));
+  return parts;
 }
 
 function createPreviewWrapper(): string {
   return `import * as BlockModule from "./src/component.tsx";
 import { createElement, type ComponentType } from "react";
+import { createRoot } from "react-dom/client";
+import "./styles.css";
 
 const namedExports = Object.entries(BlockModule).filter(
   ([name, value]) => name !== "default" && typeof value === "function",
@@ -300,5 +513,12 @@ export default function BlockPreview() {
 
   return createElement(candidate as ComponentType);
 }
+
+const rootElement = document.getElementById("root");
+if (rootElement === null) {
+  throw new Error("The preview document has no root element");
+}
+
+createRoot(rootElement).render(createElement(BlockPreview));
 `;
 }

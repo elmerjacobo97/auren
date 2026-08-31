@@ -37,9 +37,9 @@ export function CatalogBlocks({
   return (
     <div className="space-y-8">
       <CatalogPageIntro
-        description="Browse the published block inventory by verified metadata. Filter the loaded index locally; source code, detail payloads, and installation actions stay outside this view."
+        description="Start with the published Registry index. Filter by verified metadata, then open a block for its live preview, source, and install command."
         eyebrow="Auren / blocks"
-        title="The block library, in plain view."
+        title="Choose a block to build from."
       />
 
       {state.status === "loading" ? <CatalogLoadingState /> : null}

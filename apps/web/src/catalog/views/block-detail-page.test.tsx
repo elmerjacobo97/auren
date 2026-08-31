@@ -175,24 +175,27 @@ describe("BlockDetailPage", () => {
     expect(screen.queryByRole("heading", { name: "Source" })).toBeNull();
   });
 
-  it("renders validated metadata, grouped dependencies, source, install, and preview fallback", async () => {
+  it("renders validated metadata, grouped dependencies, and the playground views", async () => {
     const fetchImplementation = createCatalogDetailHarness();
 
     expect(
       await screen.findByRole("heading", { name: detailBlock.name }),
     ).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Preview" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Metadata" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Dependencies" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Source" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Install" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Preview" })).toBeTruthy();
     expect(screen.getByText("Packages")).toBeTruthy();
     expect(screen.getByText("lucide-react")).toBeTruthy();
     expect(screen.getByText("Auren blocks")).toBeTruthy();
     expect(screen.getByText("button-001")).toBeTruthy();
     expect(screen.getByText("shadcn/ui")).toBeTruthy();
-    expect(screen.getByText("npx auren add hero-001")).toBeTruthy();
     expect(screen.getByText("Preview unavailable")).toBeTruthy();
+    const previewPanel = screen.getByRole("tabpanel", { name: "Preview" });
+    expect(previewPanel.hidden).toBe(false);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Code" }));
+    expect(previewPanel.hidden).toBe(true);
+    expect(screen.getByRole("heading", { name: "Source" })).toBeTruthy();
     expect(screen.getByText("assets/logo.png")).toBeTruthy();
     expect(screen.getByText(/<strong>escaped<\/strong>/)).toBeTruthy();
     const componentCode = screen.getByText(
@@ -200,10 +203,17 @@ describe("BlockDetailPage", () => {
         element?.tagName === "CODE" && element.textContent === componentSource,
     );
     expect(componentCode.parentElement?.className).toContain("overflow-x-auto");
+
+    fireEvent.click(screen.getByRole("tab", { name: "Install" }));
+    expect(previewPanel.hidden).toBe(true);
+    expect(screen.getByRole("heading", { name: "Install" })).toBeTruthy();
     expect(screen.getByText("npx auren add hero-001").className).toContain(
       "break-all",
     );
     expect(fetchImplementation).toHaveBeenCalledTimes(2);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Preview" }));
+    expect(previewPanel.hidden).toBe(false);
   });
 
   it("copies each selected text file exactly without changing source or fetching again", async () => {
@@ -212,6 +222,7 @@ describe("BlockDetailPage", () => {
     const fetchImplementation = createCatalogDetailHarness();
 
     await screen.findByRole("heading", { name: detailBlock.name });
+    fireEvent.click(screen.getByRole("tab", { name: "Code" }));
 
     const componentCode = screen.getByText(
       (_, element) =>
@@ -253,6 +264,7 @@ describe("BlockDetailPage", () => {
     installClipboard(writeText);
     createCatalogDetailHarness();
     await screen.findByRole("heading", { name: detailBlock.name });
+    fireEvent.click(screen.getByRole("tab", { name: "Code" }));
 
     const componentButton = screen.getByRole("button", {
       name: "Copy code from component.tsx",
@@ -292,6 +304,7 @@ describe("BlockDetailPage", () => {
       installClipboard(writeText);
       createCatalogDetailHarness();
       await screen.findByRole("heading", { name: detailBlock.name });
+      fireEvent.click(screen.getByRole("tab", { name: "Code" }));
 
       fireEvent.click(
         screen.getByRole("button", { name: "Copy code from component.tsx" }),
@@ -343,6 +356,8 @@ describe("BlockDetailPage", () => {
     async (_state, writeText, message) => {
       installClipboard(writeText);
       createCatalogDetailHarness();
+      await screen.findByRole("heading", { name: detailBlock.name });
+      fireEvent.click(screen.getByRole("tab", { name: "Install" }));
       await screen.findByText("npx auren add hero-001");
 
       fireEvent.click(
@@ -361,6 +376,8 @@ describe("BlockDetailPage", () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     installClipboard(writeText);
     createCatalogDetailHarness();
+    await screen.findByRole("heading", { name: detailBlock.name });
+    fireEvent.click(screen.getByRole("tab", { name: "Install" }));
     await screen.findByText("npx auren add hero-001");
 
     fireEvent.click(

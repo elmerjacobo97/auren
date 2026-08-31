@@ -45,35 +45,37 @@ export function CatalogShell({ children }: CatalogShellProps) {
             className="w-full border-t border-[#294235] pt-3"
           >
             <ul className="flex flex-wrap gap-2">
-              {catalogSections.map((section) => {
-                const isActive =
-                  location.pathname === section.path ||
-                  (section.path === "/blocks" &&
-                    location.pathname.startsWith("/blocks/"));
+              {catalogSections
+                .filter((section) => section.availability === "available")
+                .map((section) => {
+                  const isActive =
+                    location.pathname === section.path ||
+                    (section.path === "/blocks" &&
+                      location.pathname.startsWith("/blocks/"));
 
-                return (
-                  <li key={section.path}>
-                    <Link
-                      aria-current={isActive ? "page" : undefined}
-                      className={[
-                        "inline-flex min-h-10 items-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#d6ff57] motion-reduce:transition-none",
-                        isActive
-                          ? "border-[#d6ff57] bg-[#d6ff57] text-[#12221c]"
-                          : "border-transparent text-[#d8e4d7] hover:border-[#66816d] hover:bg-[#1d352a] hover:text-white",
-                      ].join(" ")}
-                      to={section.path}
-                    >
-                      {isActive ? (
-                        <span
-                          aria-hidden="true"
-                          className="size-1.5 rounded-full bg-[#12221c]"
-                        />
-                      ) : null}
-                      {section.label}
-                    </Link>
-                  </li>
-                );
-              })}
+                  return (
+                    <li key={section.path}>
+                      <Link
+                        aria-current={isActive ? "page" : undefined}
+                        className={[
+                          "inline-flex min-h-10 items-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#d6ff57] motion-reduce:transition-none",
+                          isActive
+                            ? "border-[#d6ff57] bg-[#d6ff57] text-[#12221c]"
+                            : "border-transparent text-[#d8e4d7] hover:border-[#66816d] hover:bg-[#1d352a] hover:text-white",
+                        ].join(" ")}
+                        to={section.path}
+                      >
+                        {isActive ? (
+                          <span
+                            aria-hidden="true"
+                            className="size-1.5 rounded-full bg-[#12221c]"
+                          />
+                        ) : null}
+                        {section.label}
+                      </Link>
+                    </li>
+                  );
+                })}
             </ul>
           </nav>
         </div>
