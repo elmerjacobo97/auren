@@ -598,7 +598,7 @@ Objetivo: ir más allá de bloques individuales y ofrecer sistemas visuales cohe
 
 ## Spec 28 — Collections Installation
 
-- [x] Implementado
+- [x] Implementada y archivada
 
 Permitir instalar Collections completas.
 
