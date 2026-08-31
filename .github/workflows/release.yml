@@ -50,13 +50,13 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm registry:publish
 
-      - uses: vercel/action@v3
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-          working-directory: dist/public-registry
-          vercel-args: --prod
+      - name: Deploy Registry to Vercel
+        working-directory: dist/public-registry
+        run: npx --yes vercel@53.2.0 deploy --prod --token "$VERCEL_TOKEN" --scope "$VERCEL_ORG_ID" --yes
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
   publish-npm:
     name: Publish CLI to npm
@@ -74,6 +74,7 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+          registry-url: https://registry.npmjs.org
 
       - run: pnpm install --frozen-lockfile
 
@@ -89,4 +90,4 @@ jobs:
       - name: Publish to npm
         run: cd dist/npm-pkg && npm publish --access public
         env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

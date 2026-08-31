@@ -32,7 +32,7 @@ const DIST_NPM_PKG = resolve(WORKSPACE_ROOT, "dist/npm-pkg");
 // ---------------------------------------------------------------------------
 
 const NPM_NAME = "auren";
-const NPM_VERSION = "0.1.1";
+const NPM_VERSION = "0.1.2";
 const NPM_DESCRIPTION =
   "Discover and install versioned UI components and block catalogs.";
 
@@ -185,7 +185,7 @@ const packageManifest = {
     node: ">=20.19.0 <27",
   },
   bin: {
-    auren: "./index.js",
+    auren: "index.js",
   },
   files: ["index.js"],
   dependencies: {
@@ -205,7 +205,7 @@ const packageManifest = {
   license: "MIT",
   repository: {
     type: "git",
-    url: "https://github.com/elmerjacobo/auren",
+    url: "git+https://github.com/elmerjacobo/auren.git",
   },
 };
 
