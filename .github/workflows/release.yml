@@ -1,0 +1,89 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    name: Typecheck & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.21.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm typecheck
+      - run: pnpm test
+
+  deploy-registry:
+    name: Deploy Registry to Vercel
+    runs-on: ubuntu-latest
+    needs: check
+    environment:
+      name: production
+      url: https://auren.elmerjacobo.dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.21.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm registry:publish
+
+      - uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          working-directory: dist/public-registry
+          vercel-args: --prod
+
+  publish-npm:
+    name: Publish CLI to npm
+    runs-on: ubuntu-latest
+    needs: check
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.21.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Build all workspace packages first
+      - run: pnpm --filter @auren/schemas build
+      - run: pnpm --filter @auren/registry build
+      - run: pnpm --filter @auren/core build
+      - run: pnpm --filter @auren/cli build
+
+      # Bundle the CLI
+      - run: node packages/cli/scripts/bundle-npm.mjs
+
+      - name: Publish to npm
+        run: cd dist/npm-pkg && npm publish --access public
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
