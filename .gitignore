@@ -14,3 +14,19 @@ coverage/
 .env.*
 !.env.example
 !.env.*.example
+
+# Coding agents
+.commandcode/
+.cursorrules
+.cursors/
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
