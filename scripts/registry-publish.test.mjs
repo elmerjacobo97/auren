@@ -258,6 +258,7 @@ test("accepts and republishes a legacy block-only Registry tree", async () => {
       assert.equal(result.collectionCount, 0);
       assert.deepEqual((await readdir(outputRoot)).sort(), [
         "blocks",
+        "previews",
         "registry.json",
       ]);
       assert.equal(
@@ -582,6 +583,51 @@ test("requires inline content and rejects installation targets", async () => {
   );
 });
 
+test("rejects missing and mismatched preview artifacts before replacement", async () => {
+  await withPublishedRegistry(
+    async ({ registryRoot, outputRoot, outputSnapshot }) => {
+      const index = await readJson(path.join(registryRoot, "registry.json"));
+      const reference = index.blocks[0].preview.artifact.reference;
+      await rm(path.join(registryRoot, reference));
+
+      await assert.rejects(
+        () => publishRegistry({ registryRoot, outputRoot }),
+        (error) => {
+          assert.match(
+            errorText(error),
+            /preview descriptor references a missing artifact/,
+          );
+          return true;
+        },
+      );
+      assert.equal(await snapshotTree(outputRoot), outputSnapshot);
+    },
+  );
+
+  await withPublishedRegistry(
+    async ({ registryRoot, outputRoot, outputSnapshot }) => {
+      const index = await readJson(path.join(registryRoot, "registry.json"));
+      const reference = index.blocks[0].preview.artifact.reference;
+      const artifactPath = path.join(registryRoot, reference);
+      const artifact = await readJson(artifactPath);
+      artifact.identity = `sha256-${"f".repeat(64)}`;
+      await writeJson(artifactPath, artifact);
+
+      await assert.rejects(
+        () => publishRegistry({ registryRoot, outputRoot }),
+        (error) => {
+          assert.match(
+            errorText(error),
+            /preview descriptor and artifact identities differ/,
+          );
+          return true;
+        },
+      );
+      assert.equal(await snapshotTree(outputRoot), outputSnapshot);
+    },
+  );
+});
+
 test("rejects unsafe names and unexpected entries", async () => {
   await withPublishedRegistry(
     async ({ registryRoot, outputRoot, outputSnapshot }) => {
@@ -752,6 +798,7 @@ test("built commands publish the committed catalog without network or source mut
     assert.deepEqual((await readdir(outputRoot)).sort(), [
       "blocks",
       "collections",
+      "previews",
       "registry.json",
     ]);
     assert.equal((await readdir(path.join(outputRoot, "blocks"))).length, 11);

@@ -1,4 +1,9 @@
 import type { CatalogElement } from "@auren/schemas/catalog";
+import type { PreviewDescriptor } from "@auren/schemas/preview";
+import {
+  getPreviewPolicyFailure,
+  previewExecutionPolicy,
+} from "./preview-policy.js";
 
 export interface PreviewFile {
   readonly code: string;
@@ -6,10 +11,33 @@ export interface PreviewFile {
 }
 
 export interface PreviewProject {
+  readonly runtime: "react-vite-tailwind-4";
   readonly entry: "/index.tsx";
   readonly files: Record<string, PreviewFile>;
   readonly dependencies: Record<string, string>;
+  readonly input: { readonly kind: "empty" };
 }
+
+export const REACT_PREVIEW_RUNTIME = "react-vite-tailwind-4" as const;
+export const REACT_PREVIEW_RUNTIME_VERSION = "1.0.0" as const;
+
+export const REACT_PREVIEW_TEMPLATE = Object.freeze({
+  key: REACT_PREVIEW_RUNTIME,
+  version: REACT_PREVIEW_RUNTIME_VERSION,
+  framework: "react",
+  template: "vite-react-ts",
+  entry: "/index.tsx",
+  stylesheet: "/styles.css",
+  tailwindVersion: "4.3.3",
+  dependencies: Object.freeze({
+    "@tailwindcss/browser": "4.3.3",
+    "@vitejs/plugin-react": "6.1.1",
+    react: "19.2.8",
+    "react-dom": "19.2.8",
+    tailwindcss: "4.3.3",
+    vite: "8.2.2",
+  }),
+});
 
 export type PreviewUnavailableReason =
   | "unsupported-framework"
@@ -20,7 +48,10 @@ export type PreviewUnavailableReason =
   | "unresolved-dependency"
   | "unsupported-import"
   | "missing-export"
-  | "required-props";
+  | "required-props"
+  | "unsupported-runtime"
+  | "resource-limit"
+  | "disallowed-dependency";
 
 export type PreviewProjectResult =
   | { readonly status: "supported"; readonly project: PreviewProject }
@@ -29,7 +60,6 @@ export type PreviewProjectResult =
       readonly reason: PreviewUnavailableReason;
     };
 
-const TAILWIND_VERSION = "4.3.3";
 const BASELINE_PACKAGE_ROOTS = new Set(["react", "react-dom"]);
 const textFileExtensions = {
   component: [".tsx"],
@@ -39,8 +69,14 @@ const textFileExtensions = {
 
 export function createPreviewProject(
   block: CatalogElement,
+  descriptor?: PreviewDescriptor,
 ): PreviewProjectResult {
-  if (!block.frameworks.includes("react")) {
+  if (
+    !block.frameworks.includes("react") ||
+    (descriptor !== undefined &&
+      (descriptor.framework !== "react" ||
+        descriptor.runtime !== REACT_PREVIEW_RUNTIME))
+  ) {
     return unsupported("unsupported-framework");
   }
 
@@ -69,10 +105,40 @@ export function createPreviewProject(
     return unsupported("unresolved-dependency");
   }
 
+  const policyFailure = getPreviewPolicyFailure(
+    block.files.length,
+    block.files.map((file) =>
+      typeof file.content === "string"
+        ? new TextEncoder().encode(file.content).byteLength
+        : 0,
+    ),
+    [...packageDependencies.keys()],
+  );
+
+  if (policyFailure === "resource-limit") {
+    return unsupported("resource-limit");
+  }
+
+  if (policyFailure === "disallowed-dependency") {
+    return unsupported("disallowed-dependency");
+  }
+
+  const stylePaths = block.files
+    .filter((file) => file.kind === "style")
+    .map((file) => file.path);
   const files: Record<string, PreviewFile> = {
-    "/index.tsx": { code: createPreviewWrapper(), active: true },
+    "/index.tsx": {
+      code: createPreviewWrapper(),
+      active: true,
+    },
     "/styles.css": {
-      code: '@import "tailwindcss";',
+      code: createPreviewStylesheet(stylePaths),
+    },
+    "/vite.config.ts": {
+      code: createPreviewViteConfig(),
+    },
+    "/index.html": {
+      code: createPreviewIndexHtml(),
     },
   };
 
@@ -120,11 +186,28 @@ export function createPreviewProject(
   }
 
   const dependencies = Object.fromEntries(packageDependencies);
-  dependencies.tailwindcss ??= TAILWIND_VERSION;
+
+  for (const [name, version] of Object.entries(
+    REACT_PREVIEW_TEMPLATE.dependencies,
+  )) {
+    const declaredVersion = dependencies[name];
+
+    if (declaredVersion !== undefined && declaredVersion !== version) {
+      return unsupported("disallowed-dependency");
+    }
+
+    dependencies[name] = version;
+  }
 
   return {
     status: "supported",
-    project: { entry: "/index.tsx", files, dependencies },
+    project: {
+      runtime: REACT_PREVIEW_RUNTIME,
+      entry: "/index.tsx",
+      files,
+      dependencies,
+      input: { kind: "empty" },
+    },
   };
 }
 
@@ -493,8 +576,9 @@ function splitTopLevel(source: string, separator: string): string[] {
 }
 
 function createPreviewWrapper(): string {
-  return `import * as BlockModule from "./src/component.tsx";
-import { createElement, type ComponentType } from "react";
+  return `import "@tailwindcss/browser";
+import * as BlockModule from "./src/component.tsx";
+import { createElement, type ComponentType, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
 
@@ -514,11 +598,57 @@ export default function BlockPreview() {
   return createElement(candidate as ComponentType);
 }
 
+function PreviewRoot() {
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      window.parent.postMessage({ type: "auren-preview-ready" }, "*");
+    }, 0);
+
+    return () => window.clearTimeout(timeout);
+  }, []);
+
+  return createElement(BlockPreview);
+}
+
 const rootElement = document.getElementById("root");
 if (rootElement === null) {
   throw new Error("The preview document has no root element");
 }
 
-createRoot(rootElement).render(createElement(BlockPreview));
+createRoot(rootElement).render(createElement(PreviewRoot));
+`;
+}
+
+function createPreviewStylesheet(stylePaths: readonly string[]): string {
+  return stylePaths
+    .map((filePath) => `@import "./src/${filePath}";`)
+    .join("\n");
+}
+
+function createPreviewViteConfig(): string {
+  return `import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+
+export default defineConfig({
+  plugins: [react()],
+});
+`;
+}
+
+function createPreviewIndexHtml(): string {
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy" content="${previewExecutionPolicy.contentSecurityPolicy}" />
+    <title>Auren Preview</title>
+    <style type="text/tailwindcss">@import "tailwindcss";</style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
 `;
 }

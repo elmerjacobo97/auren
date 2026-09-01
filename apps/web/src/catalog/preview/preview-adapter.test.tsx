@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDetailElement } from "../test/fixtures.js";
 import { PreviewAdapter, type PreviewRuntimeProps } from "./preview-adapter.js";
 import { createPreviewProject } from "./preview-project.js";
+import { selectPreviewRuntime } from "./preview-runtime-adapters.js";
 
 function createPreviewBlock(
   componentSource: string,
@@ -36,12 +37,35 @@ export function Hero() {
     files: [
       { path: "component.tsx", kind: "component" },
       { path: "utilities/types.ts", kind: "utility" },
+      { path: "styles/hero.css", kind: "style" },
     ],
     dependencies: [
       { kind: "package", name: "lucide-react", version: "^0.468.0" },
     ],
   },
 );
+
+const previewIdentity = `sha256-${"c".repeat(64)}`;
+
+function createDescriptor(changes: Record<string, unknown> = {}) {
+  return {
+    schemaVersion: 1 as const,
+    contentType: "block" as const,
+    contentId: "hero-001",
+    contentVersion: previewIdentity,
+    framework: "react",
+    runtime: "react-vite-tailwind-4",
+    runtimeVersion: "1.0.0",
+    delivery: "inline" as const,
+    identity: previewIdentity,
+    status: "ready" as const,
+    artifact: {
+      kind: "inline" as const,
+      reference: "previews/hero-001/artifact.json",
+    },
+    ...changes,
+  };
+}
 
 function MockPreview({ project }: PreviewRuntimeProps) {
   return (
@@ -70,6 +94,8 @@ describe("createPreviewProject", () => {
     }
 
     expect(result.project.entry).toBe("/index.tsx");
+    expect(result.project.runtime).toBe("react-vite-tailwind-4");
+    expect(result.project.input).toEqual({ kind: "empty" });
     expect(result.project.files["/src/component.tsx"]?.code).toContain(
       "Safe preview",
     );
@@ -80,10 +106,19 @@ describe("createPreviewProject", () => {
     expect(result.project.dependencies.tailwindcss).toBe("4.3.3");
     expect(result.project.files["/index.tsx"]?.code).toContain("BlockModule");
     expect(result.project.files["/index.tsx"]?.code).toContain(
-      "createRoot(rootElement).render(createElement(BlockPreview))",
+      "createRoot(rootElement).render(createElement(PreviewRoot))",
     );
     expect(result.project.files["/index.tsx"]?.code).toContain(
       'import "./styles.css"',
+    );
+    expect(result.project.files["/styles.css"]?.code).toContain(
+      '@import "./src/styles/hero.css";',
+    );
+    expect(result.project.files["/index.html"]?.code).toContain(
+      '<style type="text/tailwindcss">@import "tailwindcss";</style>',
+    );
+    expect(result.project.files["/index.tsx"]?.code).toContain(
+      'import "@tailwindcss/browser"',
     );
   });
 
@@ -197,6 +232,21 @@ export function Hero({ active }: HeroProps) {
 });
 
 describe("PreviewAdapter", () => {
+  it("selects the explicit React runtime adapter", () => {
+    expect(selectPreviewRuntime(createDescriptor())).toMatchObject({
+      framework: "react",
+      key: "react-vite-tailwind-4",
+      delivery: "inline",
+    });
+  });
+
+  it("keeps descriptor-less catalog elements unavailable by default", () => {
+    render(<PreviewAdapter block={supportedBlock} />);
+
+    expect(screen.getByText("Preview unavailable")).toBeTruthy();
+    expect(screen.getByText(/no compatible published preview/)).toBeTruthy();
+  });
+
   it("renders a mocked isolated preview runtime", () => {
     render(<PreviewAdapter block={supportedBlock} runtime={MockPreview} />);
 
@@ -223,5 +273,44 @@ describe("PreviewAdapter", () => {
 
     expect(screen.getByText("Preview unavailable")).toBeTruthy();
     expect(screen.getByText(/compile or runtime failure/)).toBeTruthy();
+  });
+
+  it("opens an external preview safely and avoids a denied embed", () => {
+    render(
+      <PreviewAdapter
+        block={supportedBlock}
+        descriptor={createDescriptor({
+          delivery: "external",
+          artifact: undefined,
+          livePreview: {
+            url: "https://preview.example.test/hero-001",
+            embedding: "denied",
+          },
+        })}
+      />,
+    );
+
+    const link = screen.getByRole("link", { name: "Open live preview" });
+    expect(link.getAttribute("target")).toBe("_blank");
+    expect(link.getAttribute("rel")).toBe("noopener noreferrer");
+    expect(screen.queryByTitle("External live preview")).toBeNull();
+  });
+
+  it("embeds an external preview only when allowed", () => {
+    render(
+      <PreviewAdapter
+        block={supportedBlock}
+        descriptor={createDescriptor({
+          delivery: "external",
+          artifact: undefined,
+          livePreview: {
+            url: "about:blank",
+            embedding: "allowed",
+          },
+        })}
+      />,
+    );
+
+    expect(screen.getByTitle("External live preview")).toBeTruthy();
   });
 });

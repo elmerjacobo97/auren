@@ -3,26 +3,40 @@ import {
   SandpackProvider,
   useSandpack,
 } from "@codesandbox/sandpack-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { PreviewDescriptor } from "@auren/schemas/preview";
 import { PreviewUnavailable } from "./preview-fallback.js";
-import type { PreviewProject } from "./preview-project.js";
+import type { PreviewRuntimeProps } from "./preview-runtime-adapters.js";
+import { previewExecutionPolicy } from "./preview-policy.js";
 
-const PREVIEW_TIMEOUT_MS = 30_000;
+export type SandpackPreviewRuntimeProps = PreviewRuntimeProps;
 
-export interface SandpackPreviewRuntimeProps {
-  readonly project: PreviewProject;
-}
+const SANDPACK_BUILD_DEPENDENCIES = new Set(["@vitejs/plugin-react", "vite"]);
+const PREVIEW_READY_MESSAGE = "auren-preview-ready";
 
 export function SandpackPreviewRuntime({
   project,
+  descriptor,
 }: SandpackPreviewRuntimeProps) {
+  const dependencies = Object.fromEntries(
+    Object.entries(project.dependencies).filter(
+      ([name]) => !SANDPACK_BUILD_DEPENDENCIES.has(name),
+    ),
+  );
+  const files = Object.fromEntries(
+    Object.entries(project.files).filter(
+      ([path]) => path !== "/vite.config.ts",
+    ),
+  );
+
   return (
     <SandpackProvider
       customSetup={{
-        dependencies: project.dependencies,
+        dependencies,
+        devDependencies: {},
         entry: project.entry,
       }}
-      files={project.files}
+      files={files}
       options={{
         autorun: true,
         initMode: "lazy",
@@ -30,29 +44,35 @@ export function SandpackPreviewRuntime({
       }}
       template="vite-react-ts"
     >
-      <SandpackPreviewState />
+      <SandpackPreviewState descriptor={descriptor} />
     </SandpackProvider>
   );
 }
 
-function SandpackPreviewState() {
+function SandpackPreviewState({
+  descriptor,
+}: {
+  readonly descriptor?: PreviewDescriptor | undefined;
+}) {
   const { sandpack, listen } = useSandpack();
-  const [runtimeState, setRuntimeState] = useState<
-    "loading" | "ready" | "failure"
-  >("loading");
+  const [runtimeState, setRuntimeState] = useState<RuntimeState>({
+    status: "loading",
+  });
 
   useEffect(() => {
     const unsubscribe = listen((message) => {
       if (message.type === "start" && message.firstLoad === true) {
-        setRuntimeState("loading");
+        setRuntimeState({ status: "loading" });
       }
 
       if (message.type === "action") {
-        setRuntimeState("failure");
+        setRuntimeState({ status: "failure", category: "runtime" });
       }
 
       if (message.type === "done") {
-        setRuntimeState(message.compilatonError ? "failure" : "ready");
+        if (message.compilatonError) {
+          setRuntimeState({ status: "failure", category: "build" });
+        }
       }
     });
 
@@ -60,13 +80,13 @@ function SandpackPreviewState() {
   }, [listen]);
 
   useEffect(() => {
-    if (runtimeState !== "loading") {
+    if (runtimeState.status !== "loading") {
       return;
     }
 
     const timeout = window.setTimeout(
-      () => setRuntimeState("failure"),
-      PREVIEW_TIMEOUT_MS,
+      () => setRuntimeState({ status: "failure", category: "timeout" }),
+      previewExecutionPolicy.timeoutMs,
     );
 
     return () => window.clearTimeout(timeout);
@@ -74,25 +94,99 @@ function SandpackPreviewState() {
 
   useEffect(() => {
     if (sandpack.status === "initial" || sandpack.status === "idle") {
-      setRuntimeState("loading");
+      setRuntimeState({ status: "loading" });
     }
   }, [sandpack.status]);
+
+  const previewHostRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const previewHost = previewHostRef.current;
+
+    if (previewHost === null) {
+      return;
+    }
+
+    let previewFrame: HTMLIFrameElement | null = null;
+
+    const handleMessage = (event: MessageEvent) => {
+      if (
+        event.source !== previewFrame?.contentWindow ||
+        !isPreviewReadyMessage(event.data)
+      ) {
+        return;
+      }
+
+      setRuntimeState({ status: "ready" });
+    };
+
+    const attachPreviewFrame = () => {
+      const nextFrame = previewHost.querySelector("iframe");
+
+      if (
+        !(nextFrame instanceof HTMLIFrameElement) ||
+        nextFrame === previewFrame
+      ) {
+        return;
+      }
+
+      nextFrame.setAttribute("referrerpolicy", "no-referrer");
+      nextFrame.setAttribute("sandbox", "allow-scripts allow-same-origin");
+      nextFrame.setAttribute("data-preview-isolated", "true");
+      previewFrame = nextFrame;
+    };
+
+    attachPreviewFrame();
+    window.addEventListener("message", handleMessage);
+    const observer = new MutationObserver(attachPreviewFrame);
+    observer.observe(previewHost, { childList: true, subtree: true });
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("message", handleMessage);
+    };
+  }, []);
 
   if (
     sandpack.error !== null ||
     sandpack.status === "timeout" ||
-    runtimeState === "failure"
+    runtimeState.status === "failure"
   ) {
-    return <PreviewUnavailable reason="runtime-failure" />;
+    return (
+      <PreviewUnavailable
+        contentId={descriptor?.contentId}
+        failureCategory={
+          sandpack.status === "timeout"
+            ? "timeout"
+            : runtimeState.status === "failure"
+              ? runtimeState.category
+              : "runtime"
+        }
+        reason={
+          sandpack.status === "timeout" ||
+          (runtimeState.status === "failure" &&
+            runtimeState.category === "timeout")
+            ? "timeout"
+            : "runtime-failure"
+        }
+        identity={descriptor?.identity}
+        phase="runtime"
+        runtime={descriptor?.runtime}
+      />
+    );
   }
 
-  const isReady = runtimeState === "ready";
+  const isReady = runtimeState.status === "ready";
 
   return (
     <div
       aria-busy={!isReady}
       className="relative min-w-0 overflow-hidden rounded-2xl border border-[#ccd7cc] bg-white dark:border-slate-800 dark:bg-slate-900"
+      data-preview-identity={descriptor?.identity}
       data-preview-status={isReady ? "ready" : "loading"}
+      data-preview-runtime={descriptor?.runtime}
+      data-preview-isolated="true"
+      ref={previewHostRef}
     >
       <SandpackPreview
         showNavigator={false}
@@ -122,3 +216,20 @@ function SandpackPreviewState() {
     </div>
   );
 }
+
+function isPreviewReadyMessage(data: unknown): boolean {
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    "type" in data &&
+    data.type === PREVIEW_READY_MESSAGE
+  );
+}
+
+type RuntimeState =
+  | { readonly status: "loading" }
+  | { readonly status: "ready" }
+  | {
+      readonly status: "failure";
+      readonly category: "build" | "runtime" | "timeout";
+    };

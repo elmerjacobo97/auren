@@ -7,7 +7,8 @@
       "@auren/schemas/element": ["./src/element/structural-schema.ts"],
       "@auren/schemas/taxonomy": ["./src/taxonomy/schema.ts"],
       "@auren/schemas/configuration": ["./src/configuration/schema.ts"],
-      "@auren/schemas/collection": ["./src/collection/schema.ts"]
+      "@auren/schemas/collection": ["./src/collection/schema.ts"],
+      "@auren/schemas/preview": ["./src/preview/schema.ts"]
     }
   },
   "include": ["src/**/*.ts"]

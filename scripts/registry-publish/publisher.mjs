@@ -45,6 +45,7 @@ export async function publishRegistry({
   return {
     blockCount: registry.details.length,
     collectionCount: registry.collections?.length ?? 0,
+    previewCount: registry.previews?.length ?? 0,
     registryRoot: roots.registryRoot,
     outputRoot: roots.outputRoot,
   };
@@ -127,6 +128,10 @@ async function writeStagedRegistry(stagingRoot, registry) {
     await mkdir(path.join(stagingRoot, "collections"));
   }
 
+  if ((registry.previews ?? []).length > 0) {
+    await mkdir(path.join(stagingRoot, "previews"));
+  }
+
   await writeFile(path.join(stagingRoot, "registry.json"), registry.indexBytes);
 
   for (const entry of registry.details) {
@@ -138,6 +143,12 @@ async function writeStagedRegistry(stagingRoot, registry) {
       path.join(stagingRoot, "collections", entry.fileName),
       entry.bytes,
     );
+  }
+
+  for (const entry of registry.previews ?? []) {
+    const previewPath = path.join(stagingRoot, "previews", entry.fileName);
+    await mkdir(path.dirname(previewPath), { recursive: true });
+    await writeFile(previewPath, entry.bytes);
   }
 }
 

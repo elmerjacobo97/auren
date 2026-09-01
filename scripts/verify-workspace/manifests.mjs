@@ -232,10 +232,11 @@ export function validateSchemasManifest(manifest) {
       "src/taxonomy/schema.ts",
       "src/configuration/schema.ts",
       "src/collection/schema.ts",
+      "src/preview/schema.ts",
     ])
   ) {
     errors.push(
-      "packages/schemas/tsconfig.build.json: include must contain only the five public capability entrypoints",
+      "packages/schemas/tsconfig.build.json: include must contain only the six public capability entrypoints",
     );
   }
 }

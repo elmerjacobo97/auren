@@ -36,13 +36,13 @@
 
 ## 4. Verification
 
-- [ ] 4.1 Run `pnpm --filter @auren/web test`.
-- [ ] 4.2 Run `pnpm --filter @auren/web typecheck` and
+- [x] 4.1 Run `pnpm --filter @auren/web test`.
+- [x] 4.2 Run `pnpm --filter @auren/web typecheck` and
       `pnpm --filter @auren/web build`.
-- [ ] 4.3 Run repository validation relevant to the change, including
+- [x] 4.3 Run repository validation relevant to the change, including
       `pnpm check` and `pnpm lint` when the workspace is available.
-- [ ] 4.4 Run headed Playwright against `http://localhost:5173/` at desktop and
+- [x] 4.4 Run headed Playwright against `http://localhost:5173/` at desktop and
       390px widths; verify Blocks navigation, filters, supported previews,
       unsupported messaging, and absence of horizontal overflow.
-- [ ] 4.5 Confirm `.gitignore` retains the user's Playwright rule unchanged and
+- [x] 4.5 Confirm `.gitignore` retains the user's Playwright rule unchanged and
       report any unrelated worktree changes without modifying them.

@@ -445,6 +445,7 @@ const catalogFields: readonly (keyof CatalogElement)[] = [
   "frameworks",
   "dependencies",
   "metadata",
+  "preview",
 ];
 
 function compareElements(left: CatalogElement, right: CatalogElement): number {

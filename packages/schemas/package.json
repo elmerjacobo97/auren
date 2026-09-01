@@ -31,6 +31,10 @@
     "./collection": {
       "types": "./dist/collection/schema.d.ts",
       "import": "./dist/collection/schema.js"
+    },
+    "./preview": {
+      "types": "./dist/preview/schema.d.ts",
+      "import": "./dist/preview/schema.js"
     }
   }
 }

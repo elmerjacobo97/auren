@@ -13,6 +13,9 @@ import { collectionSchema as defaultCollectionSchema } from "@auren/schemas/coll
 import { RegistryBuildError } from "./errors.mjs";
 import { validateGeneratedArtifacts } from "./catalog.mjs";
 
+const previewDirectoryPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const previewFilenamePattern = /^sha256-[0-9a-f]{64}\.json$/;
+
 export async function inspectExistingOutput(
   outputRoot,
   catalogElementSchema,
@@ -47,7 +50,9 @@ export async function inspectExistingOutput(
 
   const topNames = new Set(topEntries.map((entry) => entry.name));
   const hasCollectionsDirectory = topNames.has("collections");
-  const expectedTopEntryCount = hasCollectionsDirectory ? 3 : 2;
+  const hasPreviewsDirectory = topNames.has("previews");
+  const expectedTopEntryCount =
+    2 + Number(hasCollectionsDirectory) + Number(hasPreviewsDirectory);
 
   if (
     topNames.size !== expectedTopEntryCount ||
@@ -57,12 +62,15 @@ export async function inspectExistingOutput(
       (entry) =>
         (entry.name === "registry.json" && !entry.isFile()) ||
         (entry.name === "blocks" && !entry.isDirectory()) ||
-        (entry.name === "collections" && !entry.isDirectory()),
+        (entry.name === "collections" && !entry.isDirectory()) ||
+        (entry.name === "previews" && !entry.isDirectory()),
     )
   ) {
     throw new RegistryBuildError(
       `existing output root is not recognizable Registry Build output: ${displayPath(outputRoot)}`,
-      ["expected registry.json, blocks/, and optional collections/"],
+      [
+        "expected registry.json, blocks/, and optional collections/ and previews/",
+      ],
     );
   }
 
@@ -122,6 +130,10 @@ export async function inspectExistingOutput(
     collectionEntries.sort((left, right) => compareStrings(left.id, right.id));
   }
 
+  const previews = hasPreviewsDirectory
+    ? await readPreviewEntries(path.join(outputRoot, "previews"))
+    : [];
+
   validateGeneratedArtifacts({
     catalogElementSchema,
     index,
@@ -132,6 +144,7 @@ export async function inspectExistingOutput(
     expectedCollectionIds: index.collections?.map(
       (collection) => collection?.id,
     ),
+    previews,
   });
 
   return { exists: true, recognized: true, empty: false };
@@ -190,6 +203,17 @@ async function writeStagedArtifacts(stagingRoot, artifacts) {
       entry.detail,
     );
   }
+
+  if ((artifacts.previews ?? []).length > 0) {
+    const previewsRoot = path.join(stagingRoot, "previews");
+    await mkdir(previewsRoot);
+
+    for (const entry of artifacts.previews) {
+      const previewPath = path.join(stagingRoot, entry.reference);
+      await mkdir(path.dirname(previewPath), { recursive: true });
+      await writeJson(previewPath, entry.payload);
+    }
+  }
 }
 
 async function validateStagedOutput({
@@ -200,17 +224,21 @@ async function validateStagedOutput({
 }) {
   const topEntries = await readdir(stagingRoot, { withFileTypes: true });
   const topNames = new Set(topEntries.map((entry) => entry.name));
+  const hasPreviewsDirectory = topNames.has("previews");
+  const hasPreviewArtifacts = (artifacts.previews ?? []).length > 0;
 
   if (
-    topNames.size !== 3 ||
+    topNames.size !== 3 + Number(hasPreviewArtifacts) ||
     !topNames.has("registry.json") ||
     !topNames.has("blocks") ||
     !topNames.has("collections") ||
+    hasPreviewsDirectory !== hasPreviewArtifacts ||
     topEntries.some(
       (entry) =>
         (entry.name === "registry.json" && !entry.isFile()) ||
         (entry.name === "blocks" && !entry.isDirectory()) ||
-        (entry.name === "collections" && !entry.isDirectory()),
+        (entry.name === "collections" && !entry.isDirectory()) ||
+        (entry.name === "previews" && !entry.isDirectory()),
     )
   ) {
     throw new RegistryBuildError(
@@ -258,6 +286,9 @@ async function validateStagedOutput({
 
   details.sort((left, right) => compareStrings(left.id, right.id));
   collectionEntries.sort((left, right) => compareStrings(left.id, right.id));
+  const previews = hasPreviewArtifacts
+    ? await readPreviewEntries(path.join(stagingRoot, "previews"))
+    : [];
   validateGeneratedArtifacts({
     catalogElementSchema,
     index,
@@ -266,7 +297,48 @@ async function validateStagedOutput({
     collectionSchema,
     collectionEntries,
     expectedCollectionIds: artifacts.collections.map(({ id }) => id),
+    previews,
   });
+}
+
+async function readPreviewEntries(previewsRoot) {
+  const directories = await readdir(previewsRoot, { withFileTypes: true });
+  const previews = [];
+
+  for (const directory of directories) {
+    if (
+      !directory.isDirectory() ||
+      !previewDirectoryPattern.test(directory.name)
+    ) {
+      throw new RegistryBuildError(
+        `preview artifact directory is unsafe: ${displayPath(path.join(previewsRoot, directory.name))}`,
+      );
+    }
+
+    const entries = await readdir(path.join(previewsRoot, directory.name), {
+      withFileTypes: true,
+    });
+
+    for (const entry of entries) {
+      const artifactPath = path.join(previewsRoot, directory.name, entry.name);
+
+      if (!entry.isFile() || !previewFilenamePattern.test(entry.name)) {
+        throw new RegistryBuildError(
+          `preview artifact entry is unsafe: ${displayPath(artifactPath)}`,
+        );
+      }
+
+      previews.push({
+        reference: `previews/${directory.name}/${entry.name}`,
+        payload: await readJson(artifactPath),
+      });
+    }
+  }
+
+  previews.sort((left, right) =>
+    compareStrings(left.reference, right.reference),
+  );
+  return previews;
 }
 
 async function replaceOutputDirectory({

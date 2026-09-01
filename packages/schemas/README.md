@@ -16,6 +16,10 @@ import type { AurenConfiguration } from "@auren/schemas/configuration";
 import { collectionSchema } from "@auren/schemas/collection";
 import type { Collection } from "@auren/schemas/collection";
 import {
+  previewDescriptorSchema,
+  type PreviewDescriptor,
+} from "@auren/schemas/preview";
+import {
   categorySchema,
   categoryValues,
 } from "@auren/schemas/taxonomy";
@@ -40,6 +44,11 @@ const collectionResult = collectionSchema.safeParse(input);
 const collection: Collection | undefined = collectionResult.success
   ? collectionResult.data
   : undefined;
+
+const previewResult = previewDescriptorSchema.safeParse(input.preview);
+const preview: PreviewDescriptor | undefined = previewResult.success
+  ? previewResult.data
+  : undefined;
 ```
 
 The package has five direct capability entrypoints:
@@ -55,6 +64,8 @@ The package has five direct capability entrypoints:
   inferred configuration types.
 - `@auren/schemas/collection` exports `collectionSchema`, the ordered member
   list and classification schemas, and the inferred Collection types.
+- `@auren/schemas/preview` exports the optional preview descriptor contract,
+  failure and delivery schemas, plus deterministic preview identity helpers.
 
 There is intentionally no `@auren/schemas` root export and no barrel file.
 
@@ -153,6 +164,10 @@ Every element must contain exactly these twelve top-level fields:
 | `dependencies` | Array of strict typed package or Auren descriptors; duplicate pairs are rejected. |
 | `files` | At least one strict file descriptor; source paths are unique and safe. |
 | `metadata` | Plain object containing only recursively JSON-safe values. |
+
+Published catalog elements may additionally contain the optional `preview`
+descriptor. Source block manifests do not need to include it; Registry Build
+can add it when an immutable preview artifact is available.
 
 Keys contain only ASCII lowercase letters, digits, and single hyphen
 separators. `aurenElementSchema` validates key syntax but does not validate

@@ -1,16 +1,22 @@
 import { lstat, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { collectionSchema as defaultCollectionSchema } from "@auren/schemas/collection";
+import { previewArtifactManifestSchema } from "@auren/schemas/preview";
 import { RegistryPublishError } from "./errors.mjs";
 
 const detailFilenamePattern = /^[a-z0-9]+(?:-[a-z0-9]+)*\.json$/;
+const previewDirectoryPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const previewFilenamePattern = /^sha256-[0-9a-f]{64}\.json$/;
 export async function loadPublicRegistry(
   registryRoot,
   { catalogElementSchema, collectionSchema } = {},
 ) {
   await assertDirectory(registryRoot);
   const topEntries = await readDirectory(registryRoot);
-  const hasCollectionsDirectory = assertStaticLayout(registryRoot, topEntries);
+  const { hasCollectionsDirectory, hasPreviewsDirectory } = assertStaticLayout(
+    registryRoot,
+    topEntries,
+  );
 
   const schema = catalogElementSchema ?? (await loadCatalogElementSchema());
   const collectionContract = collectionSchema ?? defaultCollectionSchema;
@@ -40,6 +46,8 @@ export async function loadPublicRegistry(
 
   validateCorrespondence(indexBlocks, details);
   validateCollectionCorrespondence(indexCollections, collections);
+  const previews = await loadPreviewDetails(registryRoot, hasPreviewsDirectory);
+  validatePreviewCorrespondence(indexBlocks, previews);
 
   return {
     catalogElementSchema: schema,
@@ -48,6 +56,7 @@ export async function loadPublicRegistry(
     indexBytes: indexResource.bytes,
     details,
     collections,
+    previews,
   };
 }
 
@@ -90,7 +99,9 @@ async function readDirectory(directory) {
 function assertStaticLayout(registryRoot, topEntries) {
   const topNames = new Set(topEntries.map((entry) => entry.name));
   const hasCollectionsDirectory = topNames.has("collections");
-  const expectedEntryCount = hasCollectionsDirectory ? 3 : 2;
+  const hasPreviewsDirectory = topNames.has("previews");
+  const expectedEntryCount =
+    2 + Number(hasCollectionsDirectory) + Number(hasPreviewsDirectory);
   const hasExpectedEntries =
     topNames.size === expectedEntryCount &&
     topNames.has("registry.json") &&
@@ -99,17 +110,20 @@ function assertStaticLayout(registryRoot, topEntries) {
     (entry) =>
       (entry.name === "registry.json" && entry.isFile()) ||
       (entry.name === "blocks" && entry.isDirectory()) ||
-      (entry.name === "collections" && entry.isDirectory()),
+      (entry.name === "collections" && entry.isDirectory()) ||
+      (entry.name === "previews" && entry.isDirectory()),
   );
 
   if (!hasExpectedEntries || !hasExpectedTypes) {
     throw new RegistryPublishError(
       `Registry input has an unexpected top-level entry: ${displayPath(registryRoot)}`,
-      ["expected registry.json, blocks/, and optional collections/"],
+      [
+        "expected registry.json, blocks/, and optional collections/ and previews/",
+      ],
     );
   }
 
-  return hasCollectionsDirectory;
+  return { hasCollectionsDirectory, hasPreviewsDirectory };
 }
 
 function validateIndexEnvelope(index) {
@@ -306,6 +320,60 @@ async function loadCollectionDetails(
   return collections;
 }
 
+async function loadPreviewDetails(registryRoot, hasPreviewsDirectory) {
+  if (!hasPreviewsDirectory) {
+    return [];
+  }
+
+  const previewsRoot = path.join(registryRoot, "previews");
+  const directories = await readDirectory(previewsRoot);
+  const previews = [];
+
+  for (const directory of directories) {
+    const directoryPath = path.join(previewsRoot, directory.name);
+
+    if (
+      !directory.isDirectory() ||
+      !previewDirectoryPattern.test(directory.name)
+    ) {
+      throw new RegistryPublishError(
+        `preview artifact directory is unsafe: ${displayPath(directoryPath)}`,
+      );
+    }
+
+    const entries = await readDirectory(directoryPath);
+
+    for (const entry of entries) {
+      const artifactPath = path.join(directoryPath, entry.name);
+
+      if (!entry.isFile() || !previewFilenamePattern.test(entry.name)) {
+        throw new RegistryPublishError(
+          `preview artifact entry is unsafe: ${displayPath(artifactPath)}`,
+        );
+      }
+
+      const resource = await readJsonResource(artifactPath);
+      assertSchema(
+        previewArtifactManifestSchema,
+        resource.value,
+        `Registry preview artifact ${directory.name}/${entry.name}`,
+        "preview",
+      );
+      previews.push({
+        reference: `previews/${directory.name}/${entry.name}`,
+        payload: resource.value,
+        bytes: resource.bytes,
+        fileName: `${directory.name}/${entry.name}`,
+      });
+    }
+  }
+
+  previews.sort((left, right) =>
+    compareStrings(left.reference, right.reference),
+  );
+  return previews;
+}
+
 function validateCorrespondence(indexBlocks, details) {
   const indexById = new Map(indexBlocks.map((block) => [block.id, block]));
   const detailById = new Map();
@@ -399,6 +467,69 @@ function validateCollectionCorrespondence(indexCollections, details) {
       throw new RegistryPublishError(
         "Registry Collection detail resources do not match the index",
         [`missing Collection detail for index id: ${collection.id}`],
+      );
+    }
+  }
+}
+
+function validatePreviewCorrespondence(indexBlocks, previews) {
+  const previewsByReference = new Map();
+
+  for (const preview of previews) {
+    if (previewsByReference.has(preview.reference)) {
+      throw new RegistryPublishError(
+        "Registry preview artifacts contain duplicate references",
+        [preview.reference],
+      );
+    }
+
+    previewsByReference.set(preview.reference, preview);
+  }
+
+  const referencedPreviews = new Set();
+
+  for (const block of indexBlocks) {
+    const descriptor = block.preview;
+
+    if (descriptor?.status !== "ready") {
+      continue;
+    }
+
+    const reference = descriptor.artifact?.reference;
+
+    if (reference === undefined) {
+      continue;
+    }
+
+    const preview = previewsByReference.get(reference);
+
+    if (preview === undefined) {
+      throw new RegistryPublishError(
+        "Registry preview descriptor references a missing artifact",
+        [`${block.id}: ${reference}`],
+      );
+    }
+
+    if (
+      preview.payload.contentId !== descriptor.contentId ||
+      preview.payload.identity !== descriptor.identity ||
+      preview.payload.runtime !== descriptor.runtime ||
+      preview.payload.runtimeVersion !== descriptor.runtimeVersion
+    ) {
+      throw new RegistryPublishError(
+        "Registry preview descriptor and artifact identities differ",
+        [`${block.id}: ${reference}`],
+      );
+    }
+
+    referencedPreviews.add(reference);
+  }
+
+  for (const reference of previewsByReference.keys()) {
+    if (!referencedPreviews.has(reference)) {
+      throw new RegistryPublishError(
+        "Registry preview artifact is not referenced by a ready descriptor",
+        [reference],
       );
     }
   }

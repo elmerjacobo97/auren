@@ -6,6 +6,8 @@ export default mergeConfig(
   defineConfig({
     test: {
       environment: "happy-dom",
+      exclude: ["e2e/**"],
+      include: ["src/**/*.{test,spec}.{ts,tsx}"],
     },
   }),
 );

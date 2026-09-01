@@ -15,8 +15,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { catalogElementSchema } from "@auren/schemas/catalog";
 import { collectionSchema } from "@auren/schemas/collection";
+import { previewArtifactManifestSchema } from "@auren/schemas/preview";
 import { expectedBlockCategories } from "./verify-workspace.mjs";
 import { buildRegistry } from "./registry-build/builder.mjs";
+import { createHostedPreviewDescriptor } from "./registry-build/hosted-preview.mjs";
+import { createPreviewArtifactKey } from "./registry-build/preview.mjs";
+import { createPreviewArtifactCache } from "./registry-build/preview-cache.mjs";
+import { logPreviewDiagnostic } from "./registry-build/preview-diagnostics.mjs";
 
 const execFile = promisify(execFileCallback);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -242,6 +247,8 @@ test("generates schema-valid index and detail payloads with text and binary cont
       ]);
       assert.equal(Object.hasOwn(index.blocks[0].files[0], "content"), false);
       catalogElementSchema.parse(index.blocks[0]);
+      assert.equal(index.blocks[0].preview.status, "failure");
+      assert.equal(index.blocks[0].preview.failure.category, "asset");
 
       const detail = await readJson(
         path.join(outputRoot, "blocks/hero-001.json"),
@@ -558,8 +565,204 @@ test("built command generates the committed catalog without changing source", as
     assert.deepEqual((await readdir(outputRoot)).sort(), [
       "blocks",
       "collections",
+      "previews",
       "registry.json",
     ]);
     assert.equal(await snapshotTree(sourceRoot), sourceSnapshot);
   });
+});
+
+test("publishes an immutable inline preview artifact and changes identity with source", async () => {
+  await withFixture(async (blocksRoot) => {
+    const blockRoot = await createBlock(blocksRoot, {
+      sourceContents: {
+        "component.tsx": "export function ExampleBlock() { return null; }\n",
+      },
+    });
+
+    await withOutput(async (outputRoot) => {
+      await buildRegistry({ blocksRoot, outputRoot });
+      const firstIndex = await readJson(path.join(outputRoot, "registry.json"));
+      const firstPreview = firstIndex.blocks[0].preview;
+      const firstArtifact = await readJson(
+        path.join(outputRoot, firstPreview.artifact.reference),
+      );
+
+      assert.equal(firstPreview.status, "ready");
+      assert.equal(firstPreview.delivery, "inline");
+      previewArtifactManifestSchema.parse(firstArtifact);
+      assert.equal(firstArtifact.identity, firstPreview.identity);
+      assert.equal(firstArtifact.contentId, "hero-001");
+      assert.equal(firstArtifact.entry, "/index.tsx");
+
+      await writeFile(
+        path.join(blockRoot, "component.tsx"),
+        "export function ExampleBlock() { return <div />; }\n",
+      );
+      await buildRegistry({ blocksRoot, outputRoot });
+      const secondIndex = await readJson(
+        path.join(outputRoot, "registry.json"),
+      );
+
+      assert.notEqual(
+        secondIndex.blocks[0].preview.identity,
+        firstPreview.identity,
+      );
+      await assert.rejects(
+        () => readFile(path.join(outputRoot, firstPreview.artifact.reference)),
+        { code: "ENOENT" },
+      );
+    });
+  });
+});
+
+test("keeps a buildable Registry entry when preview compilation fails", async () => {
+  await withFixture(async (blocksRoot) => {
+    await createBlock(blocksRoot, {
+      sourceContents: {
+        "component.tsx": "export function ExampleBlock( { return null; }\n",
+      },
+    });
+
+    await withOutput(async (outputRoot) => {
+      await buildRegistry({ blocksRoot, outputRoot });
+      const index = await readJson(path.join(outputRoot, "registry.json"));
+      const detail = await readJson(
+        path.join(outputRoot, "blocks/hero-001.json"),
+      );
+
+      assert.deepEqual(index.blocks[0].preview, detail.preview);
+      assert.equal(index.blocks[0].preview.status, "failure");
+      assert.equal(index.blocks[0].preview.failure.category, "build");
+      await assert.rejects(() => readdir(path.join(outputRoot, "previews")), {
+        code: "ENOENT",
+      });
+    });
+  });
+});
+
+test("creates a provider-neutral hosted descriptor and strips provider fields", async () => {
+  const request = {
+    schemaVersion: 1,
+    contentType: "block",
+    contentId: "hero-001",
+    contentVersion: `sha256-${"a".repeat(64)}`,
+    framework: "nextjs",
+    runtime: "nextjs-app-router",
+    runtimeVersion: "1.0.0",
+    identity: `sha256-${"b".repeat(64)}`,
+  };
+  let receivedRequest;
+
+  const descriptor = await createHostedPreviewDescriptor({
+    request,
+    createProject: async (received) => {
+      receivedRequest = received;
+      return {
+        embedding: "denied",
+        providerProjectId: "provider-secret",
+        url: "https://preview.example.test/hero-001",
+      };
+    },
+  });
+
+  assert.deepEqual(receivedRequest, request);
+  assert.deepEqual(descriptor, {
+    ...request,
+    delivery: "external",
+    livePreview: {
+      embedding: "denied",
+      url: "https://preview.example.test/hero-001",
+    },
+    status: "ready",
+  });
+  assert.equal(Object.hasOwn(descriptor, "providerProjectId"), false);
+});
+
+test("records a provider failure without leaking provider error details", async () => {
+  const descriptor = await createHostedPreviewDescriptor({
+    request: {
+      schemaVersion: 1,
+      contentType: "page",
+      contentId: "login-001",
+      contentVersion: `sha256-${"c".repeat(64)}`,
+      framework: "nextjs",
+      runtime: "nextjs-app-router",
+      runtimeVersion: "1.0.0",
+      identity: `sha256-${"d".repeat(64)}`,
+    },
+    createProject: async () => {
+      throw new Error("provider secret should not be published");
+    },
+  });
+
+  assert.equal(descriptor.status, "failure");
+  assert.deepEqual(descriptor.failure, {
+    category: "provider",
+    message: "The hosted preview provider could not create a project.",
+  });
+});
+
+test("reuses preview builds by identity and invalidates changed source", async () => {
+  const element = {
+    id: "hero-001",
+    dependencies: [],
+  };
+  const source = [
+    {
+      content: "export function Hero() { return null; }",
+      kind: "component",
+      path: "component.tsx",
+    },
+  ];
+  const cache = createPreviewArtifactCache();
+  const firstKey = await createPreviewArtifactKey({ element, files: source });
+  let buildCount = 0;
+
+  const first = await cache.getOrCreate(firstKey, async () => {
+    buildCount += 1;
+    return { identity: firstKey };
+  });
+  const second = await cache.getOrCreate(firstKey, async () => {
+    buildCount += 1;
+    return { identity: firstKey };
+  });
+
+  const changedKey = await createPreviewArtifactKey({
+    element,
+    files: [
+      {
+        ...source[0],
+        content: "export function Hero() { return <div />; }",
+      },
+    ],
+  });
+  await cache.getOrCreate(changedKey, async () => {
+    buildCount += 1;
+    return { identity: changedKey };
+  });
+
+  assert.equal(first, second);
+  assert.notEqual(changedKey, firstKey);
+  assert.equal(buildCount, 2);
+});
+
+test("writes categorized Registry preview diagnostics", () => {
+  const writes = [];
+
+  const payload = logPreviewDiagnostic(
+    {
+      category: "asset",
+      contentId: "hero-001",
+      identity: `sha256-${"e".repeat(64)}`,
+      message: "The preview does not support binary assets.",
+      phase: "build",
+      runtime: "react-vite-tailwind-4",
+    },
+    (message) => writes.push(message),
+  );
+
+  assert.equal(payload.event, "auren.preview");
+  assert.equal(writes.length, 1);
+  assert.match(writes[0], /"category":"asset"/);
 });

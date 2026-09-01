@@ -183,6 +183,7 @@ test("Schemas manifest and TypeScript settings match the capability contract", (
     "src/taxonomy/schema.ts",
     "src/configuration/schema.ts",
     "src/collection/schema.ts",
+    "src/preview/schema.ts",
   ]);
   assert.equal(buildConfig.compilerOptions?.declaration, true);
   assert.equal(buildConfig.compilerOptions?.declarationMap, true);

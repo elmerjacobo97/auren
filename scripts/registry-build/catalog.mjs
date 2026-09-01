@@ -1,9 +1,14 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { collectionSchema } from "@auren/schemas/collection";
+import { previewArtifactManifestSchema } from "@auren/schemas/preview";
 import { expectedBlockCategories } from "../verify-workspace.mjs";
 import { verifyCollections } from "../verify-collections.mjs";
 import { RegistryBuildError } from "./errors.mjs";
+import { createPreviewArtifact, createPreviewArtifactKey } from "./preview.mjs";
+import { createPreviewArtifactCache } from "./preview-cache.mjs";
+
+const defaultPreviewCache = createPreviewArtifactCache();
 
 export const catalogFields = Object.freeze([
   "id",
@@ -18,6 +23,7 @@ export const catalogFields = Object.freeze([
   "dependencies",
   "files",
   "metadata",
+  "preview",
 ]);
 
 export const collectionFields = Object.freeze([
@@ -115,8 +121,10 @@ export async function createCatalogArtifacts({
   catalogElementSchema,
   elements,
   collections = [],
+  previewCache = defaultPreviewCache,
 }) {
   const entries = [];
+  const previews = [];
 
   for (const { blockRoot, actualFiles, element } of elements) {
     const materializedFiles = [];
@@ -160,16 +168,34 @@ export async function createCatalogArtifacts({
       });
     }
 
-    const detail = projectCatalogElement(element, materializedFiles);
+    const previewKey = await createPreviewArtifactKey({
+      element,
+      files: materializedFiles,
+    });
+    const preview = await previewCache.getOrCreate(previewKey, () =>
+      createPreviewArtifact({
+        element,
+        files: materializedFiles,
+      }),
+    );
+    const detail = projectCatalogElement(
+      element,
+      materializedFiles,
+      preview.descriptor,
+    );
     const index = projectCatalogElement(
       element,
       materializedFiles.map(({ path: filePath, kind }) => ({
         path: filePath,
         kind,
       })),
+      preview.descriptor,
     );
 
     entries.push({ id: element.id, index, detail });
+    if (preview.artifact !== undefined) {
+      previews.push(preview.artifact);
+    }
   }
 
   entries.sort((left, right) => compareStrings(left.id, right.id));
@@ -189,6 +215,7 @@ export async function createCatalogArtifacts({
     },
     entries,
     collections: collectionEntries,
+    previews,
   };
 
   validateGeneratedArtifacts({
@@ -198,6 +225,7 @@ export async function createCatalogArtifacts({
     expectedIds: entries.map(({ id }) => id),
     collectionEntries: artifacts.collections,
     expectedCollectionIds: collectionEntries.map(({ id }) => id),
+    previews: artifacts.previews,
   });
 
   return artifacts;
@@ -211,6 +239,7 @@ export function validateGeneratedArtifacts({
   collectionSchema: collectionSchemaContract = collectionSchema,
   collectionEntries,
   expectedCollectionIds = collectionEntries?.map(({ id }) => id),
+  previews = [],
 }) {
   if (
     index?.schemaVersion !== 1 ||
@@ -352,6 +381,8 @@ export function validateGeneratedArtifacts({
     }
   }
 
+  validatePreviewArtifacts({ entries, index, previews });
+
   if (collectionEntries !== undefined) {
     const sortedExpectedCollectionIds = [...expectedCollectionIds].sort(
       compareStrings,
@@ -460,8 +491,8 @@ function projectCollection(collection) {
   };
 }
 
-function projectCatalogElement(element, files) {
-  return {
+function projectCatalogElement(element, files, preview) {
+  const projected = {
     id: element.id,
     name: element.name,
     description: element.description,
@@ -477,6 +508,103 @@ function projectCatalogElement(element, files) {
     ),
     metadata: sortJsonValue(element.metadata),
   };
+
+  if (preview !== undefined) {
+    projected.preview = preview;
+  }
+
+  return projected;
+}
+
+function validatePreviewArtifacts({ entries, index, previews }) {
+  const artifactsByReference = new Map();
+
+  for (const artifact of previews) {
+    if (
+      artifact === null ||
+      typeof artifact !== "object" ||
+      typeof artifact.reference !== "string"
+    ) {
+      throw new RegistryBuildError(
+        "generated preview artifacts have an invalid reference envelope",
+      );
+    }
+
+    if (artifactsByReference.has(artifact.reference)) {
+      throw new RegistryBuildError(
+        "generated preview artifacts contain duplicate references",
+        [artifact.reference],
+      );
+    }
+
+    const parsed = previewArtifactManifestSchema.safeParse(artifact.payload);
+
+    if (!parsed.success) {
+      throw new RegistryBuildError(
+        `generated preview artifact failed @auren/schemas/preview validation: ${artifact.reference}`,
+        formatSchemaIssues(parsed.error.issues),
+      );
+    }
+
+    artifactsByReference.set(artifact.reference, parsed.data);
+  }
+
+  const referencedArtifacts = new Set();
+  const indexById = new Map(index.blocks.map((block) => [block.id, block]));
+
+  for (const entry of entries) {
+    const indexBlock = indexById.get(entry.id);
+    const descriptor = entry.detail.preview;
+
+    if (!sameJsonValue(indexBlock?.preview, descriptor)) {
+      throw new RegistryBuildError(
+        "generated preview descriptors differ between index and detail",
+        [entry.id],
+      );
+    }
+
+    if (descriptor?.status !== "ready") {
+      continue;
+    }
+
+    const reference = descriptor.artifact?.reference;
+
+    if (reference === undefined) {
+      continue;
+    }
+
+    const artifact = artifactsByReference.get(reference);
+
+    if (artifact === undefined) {
+      throw new RegistryBuildError(
+        "generated preview descriptor references a missing artifact",
+        [`${entry.id}: ${reference}`],
+      );
+    }
+
+    if (
+      artifact.contentId !== descriptor.contentId ||
+      artifact.identity !== descriptor.identity ||
+      artifact.runtime !== descriptor.runtime ||
+      artifact.runtimeVersion !== descriptor.runtimeVersion
+    ) {
+      throw new RegistryBuildError(
+        "generated preview descriptor and artifact identities differ",
+        [`${entry.id}: ${reference}`],
+      );
+    }
+
+    referencedArtifacts.add(reference);
+  }
+
+  for (const reference of artifactsByReference.keys()) {
+    if (!referencedArtifacts.has(reference)) {
+      throw new RegistryBuildError(
+        "generated preview artifact is not referenced by a descriptor",
+        [reference],
+      );
+    }
+  }
 }
 
 function canonicalDependency(dependency) {

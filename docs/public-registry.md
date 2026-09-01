@@ -34,6 +34,7 @@ published tree contains only:
 ```text
 registry.json
 blocks/<id>.json
+previews/<id>/sha256-<identity>.json
 ```
 
 A host rooted at that directory must expose these stable resources:
@@ -42,6 +43,8 @@ A host rooted at that directory must expose these stable resources:
 - `HEAD /registry.json`
 - `GET /blocks/<id>.json`
 - `HEAD /blocks/<id>.json`
+- `GET /previews/<id>/sha256-<identity>.json` for ready inline preview descriptors
+- `HEAD /previews/<id>/sha256-<identity>.json`
 
 The responses must:
 
@@ -56,7 +59,9 @@ The index should have a cache policy that permits revalidation when the catalog
 changes, for example with validators supplied by the static host. Detail files
 use stable ID-based paths and may use a longer cache lifetime, but they are not
 content-versioned; deployments should still revalidate them when their payloads
-change.
+change. Inline preview artifacts are immutable identity-based resources and can
+use a long-lived cache policy. Removing a preview descriptor is the rollback
+action; the source Registry and CLI installation payload remain available.
 
 The host name, base URL, cache headers, CORS configuration, upload mechanism,
 DNS, and credentials belong to deployment configuration. No generated Registry

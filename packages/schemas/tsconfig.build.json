@@ -13,6 +13,7 @@
     "src/element/structural-schema.ts",
     "src/taxonomy/schema.ts",
     "src/configuration/schema.ts",
-    "src/collection/schema.ts"
+    "src/collection/schema.ts",
+    "src/preview/schema.ts"
   ]
 }

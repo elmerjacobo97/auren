@@ -541,6 +541,11 @@ Mostrar:
 
 Objetivo: convertir el Registry en una experiencia visual útil.
 
+La plataforma de previews es una capacidad transversal y aditiva de esta
+experiencia. Su matriz de runtimes, límites de aislamiento y verificación
+headed se mantiene en [`docs/preview-runtime-matrix.md`](preview-runtime-matrix.md);
+no cambia el contrato de instalación del CLI.
+
 ---
 
 ## Spec 25 — Catalog Filters

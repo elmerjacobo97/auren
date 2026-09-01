@@ -10,6 +10,7 @@ import {
   industrySchema,
   styleSchema,
 } from "@auren/schemas/taxonomy";
+import { previewDescriptorSchema } from "@auren/schemas/preview";
 import type { z } from "zod";
 
 export const catalogElementSchema = aurenElementSchema.safeExtend({
@@ -23,6 +24,7 @@ export const catalogElementSchema = aurenElementSchema.safeExtend({
     "Framework list",
     "At least one framework is required",
   ),
+  preview: previewDescriptorSchema.optional(),
 });
 
 export type CatalogElement = z.infer<typeof catalogElementSchema>;
